@@ -39,6 +39,9 @@
     --urgent: 0 84% 60%;
     --urgent-foreground: 0 0% 100%;
 
+    --info: 213 94% 58%;
+    --info-foreground: 0 0% 100%;
+
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 213 94% 58%;
@@ -88,6 +91,9 @@
 
     --urgent: 0 63% 40%;
     --urgent-foreground: 0 0% 100%;
+
+    --info: 213 94% 48%;
+    --info-foreground: 0 0% 100%;
 
     --border: 217 33% 17%;
     --input: 217 33% 17%;
