@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Building2, DollarSign, AlertCircle, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { signalOptions } from '@/lib/mockData';
-
+import { 
+  RunwayDisplay, 
+  NegativeBurnIndicator,
+  EbitdaValidation,
+  useRunwayCalculation
+} from '@/components/intake/RunwayValidation';
 const steps = [
   { id: 1, title: 'Company Basics', icon: Building2, description: 'Tell us about the company' },
   { id: 2, title: 'Runway & Clock', icon: DollarSign, description: 'Financial position and constraints' },
@@ -127,7 +132,12 @@ function Step1CompanyBasics() {
 
 function Step2RunwayInputs() {
   const { wizardData, setWizardData } = useDiagnostic();
-  const { runwayInputs } = wizardData;
+  const { runwayInputs, companyBasics } = wizardData;
+  
+  const { runway, isNegativeBurn } = useRunwayCalculation({
+    cashOnHand: runwayInputs.cashOnHand,
+    monthlyBurn: runwayInputs.monthlyBurn,
+  });
 
   const updateField = (field: keyof typeof runwayInputs, value: string | boolean) => {
     setWizardData(prev => ({
@@ -167,8 +177,23 @@ function Step2RunwayInputs() {
               value={runwayInputs.monthlyBurn}
               onChange={(e) => updateField('monthlyBurn', e.target.value)}
             />
+            <NegativeBurnIndicator burn={runwayInputs.monthlyBurn} />
           </div>
         </div>
+
+        {/* Real-time Runway Calculation Display */}
+        {(runwayInputs.cashOnHand || runwayInputs.monthlyBurn) && (
+          <RunwayDisplay 
+            cashOnHand={runwayInputs.cashOnHand} 
+            monthlyBurn={runwayInputs.monthlyBurn} 
+          />
+        )}
+
+        {/* EBITDA vs Revenue Validation */}
+        <EbitdaValidation 
+          revenue={companyBasics.revenue} 
+          ebitda="" // Will be used if EBITDA field is added
+        />
 
         <div className="board-card p-4">
           <div className="flex items-center justify-between mb-4">
@@ -295,8 +320,20 @@ function Step3SignalsNotes() {
 
 export default function GuidedIntake() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { wizardData, currentStep, setCurrentStep } = useDiagnostic();
   const [localStep, setLocalStep] = useState(0);
+
+  // Handle step from URL query param (for navigation from IntegrityHUD)
+  useEffect(() => {
+    const stepParam = searchParams.get('step');
+    if (stepParam) {
+      const step = parseInt(stepParam, 10);
+      if (step >= 0 && step < steps.length) {
+        setLocalStep(step);
+      }
+    }
+  }, [searchParams]);
 
   const handleNext = () => {
     if (localStep < steps.length - 1) {

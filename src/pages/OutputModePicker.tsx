@@ -1,13 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FileText, Zap, BookOpen, Shield, Check, ArrowLeft } from 'lucide-react';
+import { FileText, Zap, BookOpen, Check, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { generateMockReport } from '@/lib/mockData';
 import { OutputMode } from '@/lib/types';
+import { StrictModeToggle } from '@/components/intake/StrictModeToggle';
 
 const outputModes = [
   {
@@ -122,22 +121,10 @@ export default function OutputModePicker() {
           transition={{ delay: 0.3 }}
           className="board-card p-4 mb-8"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Shield className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <Label htmlFor="strictMode" className="text-base font-medium">Strict Mode</Label>
-                <p className="text-sm text-muted-foreground">
-                  Require evidence citations for all claims. Flags unsupported assertions.
-                </p>
-              </div>
-            </div>
-            <Switch
-              id="strictMode"
-              checked={outputConfig.strictMode}
-              onCheckedChange={(checked) => setOutputConfig(prev => ({ ...prev, strictMode: checked }))}
-            />
-          </div>
+          <StrictModeToggle
+            checked={outputConfig.strictMode}
+            onCheckedChange={(checked) => setOutputConfig(prev => ({ ...prev, strictMode: checked }))}
+          />
         </motion.div>
 
         {/* What Happens Next */}

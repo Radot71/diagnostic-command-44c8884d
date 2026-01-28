@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { toast } from 'sonner';
+import { IntegrityHUD } from '@/components/report/IntegrityHUD';
+import { EvidenceRegister } from '@/components/report/EvidenceRegister';
 
 const reportTabs = [
   { id: 'executive', label: 'Executive Brief', icon: FileText },
@@ -23,77 +24,6 @@ const reportTabs = [
   { id: 'execution', label: 'Execution Plan', icon: ClipboardList },
   { id: 'evidence', label: 'Evidence', icon: FileCheck },
 ];
-
-function IntegrityHUD() {
-  const { report } = useDiagnostic();
-  if (!report) return null;
-
-  const { integrity } = report;
-  const overallScore = Math.round((integrity.completeness + integrity.evidenceQuality + integrity.confidence) / 3);
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'bg-success';
-    if (score >= 60) return 'bg-warning';
-    return 'bg-urgent';
-  };
-
-  return (
-    <div className="board-card p-4 h-fit sticky top-4">
-      <h3 className="font-semibold text-foreground mb-4">Integrity HUD</h3>
-
-      {/* Overall Score */}
-      <div className="text-center mb-6">
-        <div className={`w-20 h-20 rounded-full mx-auto flex items-center justify-center text-2xl font-bold text-white ${getScoreColor(overallScore)}`}>
-          {overallScore}%
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">Overall Confidence</p>
-      </div>
-
-      {/* Individual Metrics */}
-      <div className="space-y-4 mb-6">
-        <div>
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-muted-foreground">Completeness</span>
-            <span className="font-medium">{integrity.completeness}%</span>
-          </div>
-          <Progress value={integrity.completeness} className="h-2" />
-        </div>
-        <div>
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-muted-foreground">Evidence Quality</span>
-            <span className="font-medium">{integrity.evidenceQuality}%</span>
-          </div>
-          <Progress value={integrity.evidenceQuality} className="h-2" />
-        </div>
-        <div>
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-muted-foreground">Confidence</span>
-            <span className="font-medium">{integrity.confidence}%</span>
-          </div>
-          <Progress value={integrity.confidence} className="h-2" />
-        </div>
-      </div>
-
-      {/* Missing Data */}
-      <div>
-        <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-warning" />
-          Missing Data ({integrity.missingData.length})
-        </h4>
-        <ul className="space-y-1">
-          {integrity.missingData.map((item, index) => (
-            <li
-              key={index}
-              className="text-xs text-muted-foreground py-1.5 px-2 rounded bg-muted/50 hover:bg-muted cursor-pointer transition-colors"
-            >
-              {item}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
 
 function InputSummaryPanel() {
   const { report, wizardData } = useDiagnostic();
@@ -291,13 +221,13 @@ Confidence Score: ${Math.round((report.integrity.completeness + report.integrity
 
   const getTabContent = () => {
     switch (activeTab) {
-      case 'executive': return report.sections.executiveBrief;
-      case 'value': return report.sections.valueLedger;
-      case 'scenarios': return report.sections.scenarios;
-      case 'options': return report.sections.options;
-      case 'execution': return report.sections.executionPlan;
-      case 'evidence': return report.sections.evidenceRegister;
-      default: return '';
+      case 'executive': return <ReportContent content={report.sections.executiveBrief} />;
+      case 'value': return <ReportContent content={report.sections.valueLedger} />;
+      case 'scenarios': return <ReportContent content={report.sections.scenarios} />;
+      case 'options': return <ReportContent content={report.sections.options} />;
+      case 'execution': return <ReportContent content={report.sections.executionPlan} />;
+      case 'evidence': return <EvidenceRegister />;
+      default: return null;
     }
   };
 
@@ -383,7 +313,7 @@ Confidence Score: ${Math.round((report.integrity.completeness + report.integrity
               </div>
 
               <div className="p-6">
-                <ReportContent content={getTabContent()} />
+                {getTabContent()}
               </div>
             </Tabs>
           </motion.div>
