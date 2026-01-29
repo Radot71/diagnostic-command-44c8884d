@@ -121,9 +121,15 @@ export function PageHeader({ title, subtitle, breadcrumbs, actions }: PageHeader
   );
 }
 
-export function PageContent({ children, className }: { children: ReactNode; className?: string }) {
+interface PageContentProps {
+  children: ReactNode;
+  className?: string;
+  id?: string;
+}
+
+export function PageContent({ children, className, id }: PageContentProps) {
   return (
-    <div className={cn("flex-1 overflow-auto p-6", className)}>
+    <div id={id} className={cn("flex-1 overflow-auto p-6", className)}>
       {children}
     </div>
   );

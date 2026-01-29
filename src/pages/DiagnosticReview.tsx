@@ -1,145 +1,21 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  AlertTriangle, TrendingUp, Target, Route, ClipboardList, FileCheck,
-  Download, Printer, FileJson, FileText, ChevronDown, Clock, Shield,
-  ArrowLeft, Eye
+  Download, Printer, FileJson, FileText, Clock, 
+  ArrowLeft, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
+import { ReportSidebar, SeverityIndicator, ConfidenceScore, IntegrityMeter, reportSections } from '@/components/report/ReportNavigation';
+import { ReportContent } from '@/components/report/ReportContent';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-
-const reportSections = [
-  { id: 'situation', label: 'Situation', icon: AlertTriangle },
-  { id: 'value', label: 'Value at Risk', icon: TrendingUp },
-  { id: 'failures', label: 'Failure Modes', icon: Target },
-  { id: 'scenarios', label: 'Scenarios', icon: Route },
-  { id: 'options', label: 'Options', icon: ClipboardList },
-  { id: 'recommendation', label: 'Recommendation', icon: Shield },
-  { id: 'execution', label: 'Execution Plan', icon: ClipboardList },
-  { id: 'evidence', label: 'Evidence Register', icon: FileCheck },
-];
+import { motion } from 'framer-motion';
 
 type ViewMode = 'executive' | 'board' | 'prospect';
-
-function ReportSidebar({ 
-  activeSection, 
-  onSectionChange 
-}: { 
-  activeSection: string;
-  onSectionChange: (section: string) => void;
-}) {
-  return (
-    <nav className="space-y-1">
-      {reportSections.map((section) => {
-        const Icon = section.icon;
-        const isActive = activeSection === section.id;
-        
-        return (
-          <button
-            key={section.id}
-            onClick={() => onSectionChange(section.id)}
-            className={cn(
-              "w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded transition-colors text-left",
-              isActive 
-                ? "bg-accent text-accent-foreground font-medium" 
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            )}
-          >
-            <Icon className="w-4 h-4 flex-shrink-0" />
-            <span>{section.label}</span>
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
-
-function SeverityIndicator({ level }: { level: string }) {
-  const config = {
-    critical: { label: 'CRITICAL', class: 'severity-red' },
-    high: { label: 'HIGH', class: 'severity-orange' },
-    medium: { label: 'MEDIUM', class: 'severity-yellow' },
-    low: { label: 'LOW', class: 'severity-green' },
-  };
-  
-  const { label, class: className } = config[level as keyof typeof config] || config.medium;
-  
-  return <span className={cn('severity-badge', className)}>{label}</span>;
-}
-
-function ConfidenceScore({ score }: { score: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
-        <div 
-          className={cn(
-            "h-full rounded-full transition-all",
-            score >= 70 ? "bg-success" : score >= 50 ? "bg-warning" : "bg-destructive"
-          )} 
-          style={{ width: `${score}%` }} 
-        />
-      </div>
-      <span className="text-sm font-medium">{score}%</span>
-    </div>
-  );
-}
-
-function ReportContent({ content, section }: { content: string; section: string }) {
-  const renderContent = (text: string) => {
-    return text.split('\n').map((line, i) => {
-      if (line.startsWith('## ')) {
-        return <h2 key={i} className="text-xl font-bold text-foreground mt-8 mb-4 first:mt-0">{line.replace('## ', '')}</h2>;
-      }
-      if (line.startsWith('### ')) {
-        return <h3 key={i} className="text-lg font-semibold text-foreground mt-6 mb-3">{line.replace('### ', '')}</h3>;
-      }
-      if (line.startsWith('| ')) {
-        const cells = line.split('|').filter(c => c.trim());
-        return (
-          <div key={i} className="grid grid-cols-4 gap-2 py-2.5 border-b border-border text-sm">
-            {cells.map((cell, j) => (
-              <span key={j} className={j === 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}>
-                {cell.trim()}
-              </span>
-            ))}
-          </div>
-        );
-      }
-      if (line.startsWith('- [ ]')) {
-        return (
-          <div key={i} className="flex items-center gap-3 py-1.5 text-sm">
-            <div className="w-4 h-4 rounded border border-border flex-shrink-0" />
-            <span className="text-foreground">{line.replace('- [ ]', '').trim()}</span>
-          </div>
-        );
-      }
-      if (line.startsWith('- ')) {
-        return <li key={i} className="ml-4 text-muted-foreground py-0.5">{line.replace('- ', '')}</li>;
-      }
-      if (line.match(/^\d+\./)) {
-        return <li key={i} className="ml-4 text-muted-foreground list-decimal py-0.5">{line.replace(/^\d+\.\s*/, '')}</li>;
-      }
-      if (line.trim() === '') {
-        return <div key={i} className="h-3" />;
-      }
-      const parts = line.split(/\*\*(.*?)\*\*/g);
-      return (
-        <p key={i} className="text-muted-foreground leading-relaxed">
-          {parts.map((part, j) => (
-            j % 2 === 1 ? <strong key={j} className="text-foreground font-medium">{part}</strong> : part
-          ))}
-        </p>
-      );
-    });
-  };
-
-  return <div className="prose prose-sm max-w-none">{renderContent(content)}</div>;
-}
 
 export default function DiagnosticReview() {
   const navigate = useNavigate();
@@ -155,6 +31,10 @@ export default function DiagnosticReview() {
   const confidenceScore = Math.round(
     (report.integrity.completeness + report.integrity.evidenceQuality + report.integrity.confidence) / 3
   );
+
+  // Calculate fields needed for next confidence milestone
+  const nextMilestone = confidenceScore < 50 ? 50 : confidenceScore < 70 ? 70 : confidenceScore < 80 ? 80 : 90;
+  const fieldsToNext = Math.ceil((nextMilestone - confidenceScore) / 10);
 
   const handleExportPDF = () => {
     window.print();
@@ -222,12 +102,17 @@ export default function DiagnosticReview() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Navigation */}
-        <aside className="w-56 border-r border-border bg-card p-4 flex-shrink-0 overflow-auto">
+        <motion.aside 
+          initial={{ x: -20, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="w-56 border-r border-border bg-card p-4 flex-shrink-0 overflow-auto"
+        >
           <ReportSidebar 
             activeSection={activeSection} 
             onSectionChange={setActiveSection} 
           />
-        </aside>
+        </motion.aside>
 
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -240,7 +125,24 @@ export default function DiagnosticReview() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Confidence:</span>
-                <ConfidenceScore score={confidenceScore} />
+                <Tooltip>
+                  <TooltipTrigger>
+                    <ConfidenceScore score={confidenceScore} />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="font-medium mb-1">Confidence Score: {confidenceScore}%</p>
+                    {confidenceScore < 70 && (
+                      <p className="text-xs text-muted-foreground">
+                        Below 70% threshold. Add {fieldsToNext} more fields to reach {nextMilestone}%.
+                      </p>
+                    )}
+                    {report.integrity.missingData.length > 0 && (
+                      <p className="text-xs text-destructive mt-1">
+                        Missing: {report.integrity.missingData.slice(0, 2).join(', ')}
+                      </p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-muted-foreground" />
@@ -251,11 +153,13 @@ export default function DiagnosticReview() {
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center gap-1 bg-muted rounded p-1">
+            <div className="flex items-center gap-1 bg-muted rounded p-1" role="tablist">
               {(['executive', 'board', 'prospect'] as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
+                  role="tab"
+                  aria-selected={viewMode === mode}
                   className={cn(
                     "px-3 py-1.5 text-xs font-medium rounded transition-colors capitalize",
                     viewMode === mode 
@@ -270,15 +174,38 @@ export default function DiagnosticReview() {
           </div>
 
           {/* Report Content */}
-          <div className="flex-1 overflow-auto p-6">
+          <motion.div 
+            key={activeSection}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex-1 overflow-auto p-6"
+          >
             <div className="max-w-4xl">
+              {/* Section Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-foreground">
+                  {reportSections.find(s => s.id === activeSection)?.label}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {viewMode === 'executive' && 'Detailed analysis for executive review'}
+                  {viewMode === 'board' && 'Summary format for board presentation'}
+                  {viewMode === 'prospect' && 'Condensed snapshot for prospect outreach'}
+                </p>
+              </div>
+              
               <ReportContent content={getSectionContent()} section={activeSection} />
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Right Sidebar - Export & Summary */}
-        <aside className="w-72 border-l border-border bg-card p-4 flex-shrink-0 overflow-auto">
+        <motion.aside 
+          initial={{ x: 20, opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="w-72 border-l border-border bg-card p-4 flex-shrink-0 overflow-auto"
+        >
           {/* Export Section */}
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-foreground mb-3">Export & Delivery</h3>
@@ -302,37 +229,43 @@ export default function DiagnosticReview() {
             </div>
           </div>
 
+          {/* Confidence Summary */}
+          <div className="mb-6 p-3 bg-muted/30 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-foreground">Overall Confidence</span>
+              <span className={cn(
+                "text-lg font-bold",
+                confidenceScore >= 70 ? "text-success" : confidenceScore >= 50 ? "text-warning" : "text-destructive"
+              )}>
+                {confidenceScore}%
+              </span>
+            </div>
+            {confidenceScore < 70 && (
+              <div className="flex items-center gap-2 text-xs text-warning">
+                <AlertCircle className="w-3 h-3" />
+                <span>Below strict mode threshold (70%)</span>
+              </div>
+            )}
+            {confidenceScore >= 70 && (
+              <div className="flex items-center gap-2 text-xs text-success">
+                <CheckCircle2 className="w-3 h-3" />
+                <span>Meets strict mode requirements</span>
+              </div>
+            )}
+            {confidenceScore < 90 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Add {fieldsToNext} more field{fieldsToNext > 1 ? 's' : ''} to reach {nextMilestone}%
+              </p>
+            )}
+          </div>
+
           {/* Integrity Summary */}
           <div className="mb-6">
             <h3 className="text-sm font-semibold text-foreground mb-3">Data Integrity</h3>
             <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">Completeness</span>
-                  <span className="font-medium">{report.integrity.completeness}%</span>
-                </div>
-                <div className="integrity-meter">
-                  <div className="integrity-fill bg-accent" style={{ width: `${report.integrity.completeness}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">Evidence Quality</span>
-                  <span className="font-medium">{report.integrity.evidenceQuality}%</span>
-                </div>
-                <div className="integrity-meter">
-                  <div className="integrity-fill bg-accent" style={{ width: `${report.integrity.evidenceQuality}%` }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">Confidence</span>
-                  <span className="font-medium">{report.integrity.confidence}%</span>
-                </div>
-                <div className="integrity-meter">
-                  <div className="integrity-fill bg-accent" style={{ width: `${report.integrity.confidence}%` }} />
-                </div>
-              </div>
+              <IntegrityMeter label="Completeness" value={report.integrity.completeness} />
+              <IntegrityMeter label="Evidence Quality" value={report.integrity.evidenceQuality} />
+              <IntegrityMeter label="Confidence" value={report.integrity.confidence} />
             </div>
           </div>
 
@@ -343,11 +276,21 @@ export default function DiagnosticReview() {
               <ul className="space-y-1.5">
                 {report.integrity.missingData.slice(0, 5).map((item, index) => (
                   <li key={index} className="text-xs text-muted-foreground flex items-start gap-2">
-                    <span className="text-destructive">•</span>
-                    {item}
+                    <span className="text-destructive mt-0.5">•</span>
+                    <button 
+                      onClick={() => navigate('/diagnostic')}
+                      className="text-left hover:text-accent underline underline-offset-2"
+                    >
+                      {item}
+                    </button>
                   </li>
                 ))}
               </ul>
+              {report.integrity.missingData.length > 5 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  +{report.integrity.missingData.length - 5} more...
+                </p>
+              )}
             </div>
           )}
 
@@ -364,7 +307,7 @@ export default function DiagnosticReview() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-        </aside>
+        </motion.aside>
       </div>
     </EnterpriseLayout>
   );
