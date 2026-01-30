@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
-import { demoScenarios } from '@/lib/mockData';
-import { runEnsembleDiagnostic } from '@/lib/ensembleRunner';
+import { demoScenarios, generateMockReport } from '@/lib/mockData';
+import { runValidation } from '@/lib/validationRunner';
 import { ScenarioComparison, ScenarioSelectBadge } from '@/components/report/ScenarioComparison';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -147,9 +147,10 @@ export default function DemoScenarioLibrary() {
       const demoData = demoScenarios[scenario.dataIndex];
       loadDemoScenario(demoData.data);
       
-      // Use EnsembleRunner which respects ENSEMBLE_MODE config
-      const report = await runEnsembleDiagnostic(demoData.data, 'rapid');
-      setReport(report);
+      // Generate base report then run validation
+      const baseReport = generateMockReport(demoData.data, 'rapid');
+      const validatedReport = await runValidation(baseReport);
+      setReport(validatedReport);
       setOutputConfig({ mode: 'rapid', strictMode: true });
       navigate('/report');
     } finally {

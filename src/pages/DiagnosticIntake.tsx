@@ -9,8 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
-import { situations, signalOptions } from '@/lib/mockData';
-import { runEnsembleDiagnostic } from '@/lib/ensembleRunner';
+import { situations, signalOptions, generateMockReport } from '@/lib/mockData';
+import { runValidation } from '@/lib/validationRunner';
 import { cn } from '@/lib/utils';
 
 const steps = [
@@ -70,9 +70,11 @@ export default function DiagnosticIntake() {
   const handleRunDiagnostic = async () => {
     setIsRunning(true);
     try {
-      // Use EnsembleRunner which respects ENSEMBLE_MODE config
-      const report = await runEnsembleDiagnostic(wizardData, 'rapid');
-      setReport(report);
+      // Generate the base report first
+      const baseReport = generateMockReport(wizardData, 'rapid');
+      // Then run validation which adds meta.validation
+      const validatedReport = await runValidation(baseReport);
+      setReport(validatedReport);
       setOutputConfig({ mode: 'rapid', strictMode: true });
       navigate('/report');
     } catch (error) {

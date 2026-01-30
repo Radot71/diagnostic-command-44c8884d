@@ -1,14 +1,14 @@
 /**
  * Validation Badge Component
  * 
- * Minimal UI indicator for ensemble validation status.
+ * Minimal UI indicator for validation status.
  * Only shows when ensemble mode is active.
  */
 
 import { Shield, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { getValidationBadge } from '@/lib/ensembleRunner';
+import { getValidationBadge } from '@/lib/validationRunner';
 import type { DiagnosticReport } from '@/lib/types';
 
 interface ValidationBadgeProps {
@@ -42,11 +42,11 @@ export function ValidationBadge({ report, className }: ValidationBadgeProps) {
       </TooltipTrigger>
       <TooltipContent className="max-w-xs">
         <p className="text-sm">{badge.tooltip}</p>
-        {report.validation && report.validation.ensemble_mode !== 'off' && (
+        {report.validation && report.validation.ensembleMode !== 'off' && (
           <div className="mt-2 text-xs text-muted-foreground space-y-1">
-            <p>Mode: {report.validation.ensemble_mode}</p>
-            <p>Passes: {report.validation.passes_completed}/{report.validation.pass_count}</p>
-            <p>Time: {report.validation.execution_time_total_ms}ms</p>
+            <p>Mode: {report.validation.ensembleMode}</p>
+            <p>Consensus: {Math.round(report.validation.consensusScore * 100)}%</p>
+            <p>Evidence: {Math.round(report.validation.evidenceScore * 100)}%</p>
           </div>
         )}
       </TooltipContent>
