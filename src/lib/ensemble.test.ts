@@ -1,5 +1,5 @@
 /**
- * Ensemble Configuration and Runner Tests
+ * Validation Configuration and Runner Tests
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -67,50 +67,49 @@ describe('Ensemble Configuration', () => {
   });
 });
 
-describe('Ensemble Types', () => {
+describe('Validation Types', () => {
   it('should have correct 3-pass lens definitions', async () => {
-    const { THREE_PASS_LENSES } = await import('@/lib/ensembleTypes');
+    const { THREE_PASS_VALIDATION_LENSES } = await import('@/lib/validationTypes');
     
-    expect(THREE_PASS_LENSES).toHaveLength(3);
-    expect(THREE_PASS_LENSES.map(l => l.id)).toEqual([
-      'CORE_DIAGNOSTIC',
-      'RISK_AUDIT',
-      'SYNTHESIS'
+    expect(THREE_PASS_VALIDATION_LENSES).toHaveLength(3);
+    expect(THREE_PASS_VALIDATION_LENSES.map(l => l.id)).toEqual([
+      'CONSISTENCY_LENS',
+      'AUDIT_LENS',
+      'SYNTHESIS_LENS'
     ]);
   });
 
   it('should have correct 5-pass lens definitions', async () => {
-    const { FIVE_PASS_LENSES } = await import('@/lib/ensembleTypes');
+    const { FIVE_PASS_VALIDATION_LENSES } = await import('@/lib/validationTypes');
     
-    expect(FIVE_PASS_LENSES).toHaveLength(5);
-    expect(FIVE_PASS_LENSES.map(l => l.id)).toEqual([
-      'CORE_DIAGNOSTIC',
-      'RISK_AUDIT',
-      'VALUE_LENS',
+    expect(FIVE_PASS_VALIDATION_LENSES).toHaveLength(5);
+    expect(FIVE_PASS_VALIDATION_LENSES.map(l => l.id)).toEqual([
+      'CONSISTENCY_LENS',
       'AUDIT_LENS',
-      'SYNTHESIS'
+      'RISK_LENS',
+      'VALUE_LENS',
+      'SYNTHESIS_LENS'
     ]);
   });
 });
 
-describe('Ensemble Merge Logic', () => {
-  it('should create single pass validation with full consensus', async () => {
-    const { createSinglePassValidation } = await import('@/lib/ensembleMerge');
+describe('Validation Runner Logic', () => {
+  it('should create default validation with full consensus', async () => {
+    const { createDefaultValidation } = await import('@/lib/validationRunner');
     
-    const validation = createSinglePassValidation();
-    expect(validation.ensemble_mode).toBe('off');
-    expect(validation.consensus_score).toBe(1.0);
-    expect(validation.material_disagreement).toBe(false);
-    expect(validation.fallback_used).toBe(false);
+    const validation = createDefaultValidation();
+    expect(validation.ensembleMode).toBe('off');
+    expect(validation.consensusScore).toBe(1.0);
+    expect(validation.materialDisagreement).toBe(false);
+    expect(validation.followUpQuestions).toEqual([]);
   });
 
   it('should create fallback validation with disagreement flag', async () => {
-    const { createFallbackValidation } = await import('@/lib/ensembleMerge');
+    const { createFallbackValidation } = await import('@/lib/validationRunner');
     
-    const validation = createFallbackValidation('Test error', 1000);
-    expect(validation.material_disagreement).toBe(true);
-    expect(validation.fallback_used).toBe(true);
-    expect(validation.disagreement_notes.length).toBeGreaterThan(0);
-    expect(validation.disagreement_notes[0]).toContain('Validation fallback');
+    const validation = createFallbackValidation('Test error');
+    expect(validation.materialDisagreement).toBe(true);
+    expect(validation.disagreementNotes.length).toBeGreaterThan(0);
+    expect(validation.disagreementNotes[0]).toContain('Validation fallback');
   });
 });

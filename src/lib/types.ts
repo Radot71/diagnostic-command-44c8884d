@@ -59,6 +59,25 @@ export interface ReportSection {
   content: string;
 }
 
+/** Field diff for validation findings */
+export interface FieldDiff {
+  field: string;
+  issue: string;
+  expected?: string;
+  actual?: string;
+}
+
+/** Validation metadata schema - additive to Decision Packet */
+export interface ValidationMetadata {
+  ensembleMode: 'off' | '3pass' | '5pass';
+  consensusScore: number; // 0..1
+  evidenceScore: number; // 0..1
+  materialDisagreement: boolean;
+  disagreementNotes: string[];
+  followUpQuestions: string[];
+  fieldDiffs: FieldDiff[];
+}
+
 export interface DiagnosticReport {
   id: string;
   generatedAt: string;
@@ -74,16 +93,6 @@ export interface DiagnosticReport {
   };
   inputSummary: string;
   rawJson: object;
-  /** Optional validation metadata from ensemble runner - safe to ignore */
-  validation?: {
-    ensemble_mode: 'off' | '3pass' | '5pass';
-    consensus_score: number;
-    evidence_score: number;
-    material_disagreement: boolean;
-    disagreement_notes: string[];
-    pass_count: number;
-    passes_completed: number;
-    fallback_used: boolean;
-    execution_time_total_ms: number;
-  };
+  /** Optional validation metadata from ValidationRunner - safe to ignore */
+  validation?: ValidationMetadata;
 }
