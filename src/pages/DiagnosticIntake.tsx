@@ -9,7 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
-import { situations, signalOptions, generateMockReport } from '@/lib/mockData';
+import { situations, signalOptions } from '@/lib/mockData';
+import { runEnsembleDiagnostic } from '@/lib/ensembleRunner';
 import { cn } from '@/lib/utils';
 
 const steps = [
@@ -64,11 +65,21 @@ export default function DiagnosticIntake() {
     setWizardData(prev => ({ ...prev, situation }));
   };
 
-  const handleRunDiagnostic = () => {
-    const report = generateMockReport(wizardData, 'rapid');
-    setReport(report);
-    setOutputConfig({ mode: 'rapid', strictMode: true });
-    navigate('/report');
+  const [isRunning, setIsRunning] = useState(false);
+
+  const handleRunDiagnostic = async () => {
+    setIsRunning(true);
+    try {
+      // Use EnsembleRunner which respects ENSEMBLE_MODE config
+      const report = await runEnsembleDiagnostic(wizardData, 'rapid');
+      setReport(report);
+      setOutputConfig({ mode: 'rapid', strictMode: true });
+      navigate('/report');
+    } catch (error) {
+      console.error('[DiagnosticOS] Diagnostic run failed:', error);
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   const canProceed = () => {
@@ -452,6 +463,10 @@ export default function DiagnosticIntake() {
               >
                 Continue
                 <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            ) : isRunning ? (
+              <Button disabled>
+                <span className="animate-pulse">Running Diagnostic...</span>
               </Button>
             ) : (
               <Button
