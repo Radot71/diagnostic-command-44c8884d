@@ -11,6 +11,8 @@ import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/E
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { ReportSidebar, SeverityIndicator, ConfidenceScore, IntegrityMeter, reportSections } from '@/components/report/ReportNavigation';
 import { ReportContent } from '@/components/report/ReportContent';
+import { ValidationBadge } from '@/components/report/ValidationBadge';
+import { DevQAPanel } from '@/components/report/DevQAPanel';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -150,6 +152,8 @@ export default function DiagnosticReview() {
                   {wizardData.situation?.urgency === 'critical' ? 'Immediate Action Required' : 'Standard Timeline'}
                 </span>
               </div>
+              {/* Validation Badge - only shows when ensemble active */}
+              <ValidationBadge report={report} />
             </div>
 
             {/* View Mode Toggle */}
@@ -293,6 +297,9 @@ export default function DiagnosticReview() {
               )}
             </div>
           )}
+
+          {/* Dev QA Panel - only in dev mode */}
+          <DevQAPanel report={report} className="mb-6" />
 
           {/* Advanced JSON */}
           <Accordion type="single" collapsible>

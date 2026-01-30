@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
-import { demoScenarios, generateMockReport } from '@/lib/mockData';
+import { demoScenarios } from '@/lib/mockData';
+import { runEnsembleDiagnostic } from '@/lib/ensembleRunner';
 import { ScenarioComparison, ScenarioSelectBadge } from '@/components/report/ScenarioComparison';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -138,16 +139,22 @@ export default function DemoScenarioLibrary() {
   const { loadDemoScenario, setReport, setOutputConfig } = useDiagnostic();
   const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
   const [comparisonMode, setComparisonMode] = useState(false);
+  const [loadingScenario, setLoadingScenario] = useState<string | null>(null);
 
-  const handleOpenDiagnostic = (scenario: DemoScenario) => {
-    const demoData = demoScenarios[scenario.dataIndex];
-    loadDemoScenario(demoData.data);
-    
-    // Generate report and go directly to review mode
-    const report = generateMockReport(demoData.data, 'rapid');
-    setReport(report);
-    setOutputConfig({ mode: 'rapid', strictMode: true });
-    navigate('/report');
+  const handleOpenDiagnostic = async (scenario: DemoScenario) => {
+    setLoadingScenario(scenario.id);
+    try {
+      const demoData = demoScenarios[scenario.dataIndex];
+      loadDemoScenario(demoData.data);
+      
+      // Use EnsembleRunner which respects ENSEMBLE_MODE config
+      const report = await runEnsembleDiagnostic(demoData.data, 'rapid');
+      setReport(report);
+      setOutputConfig({ mode: 'rapid', strictMode: true });
+      navigate('/report');
+    } finally {
+      setLoadingScenario(null);
+    }
   };
 
   const toggleScenarioSelection = (id: string) => {
@@ -289,8 +296,9 @@ export default function DemoScenarioLibrary() {
                     size="sm"
                     className="w-full"
                     onClick={() => handleOpenDiagnostic(scenario)}
+                    disabled={loadingScenario !== null}
                   >
-                    Open Diagnostic
+                    {loadingScenario === scenario.id ? 'Loading...' : 'Open Diagnostic'}
                   </Button>
                 </motion.div>
               );
