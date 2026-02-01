@@ -2,8 +2,24 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+function sanitizeApiKey(raw: string): string {
+  let v = raw.trim();
+
+  // Remove accidental wrapping quotes (common when copying from .env files)
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1).trim();
+  }
+
+  // Some SDKs use `Authorization: Bearer ...`; users sometimes paste that whole string.
+  if (/^bearer\s+/i.test(v)) {
+    v = v.replace(/^bearer\s+/i, "").trim();
+  }
+
+  return v;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,11 +27,28 @@ serve(async (req) => {
   }
 
   try {
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    const rawKey = Deno.env.get("ANTHROPIC_API_KEY");
     
-    if (!ANTHROPIC_API_KEY) {
+    if (!rawKey) {
       return new Response(
         JSON.stringify({ success: false, error: "ANTHROPIC_API_KEY is not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const ANTHROPIC_API_KEY = sanitizeApiKey(rawKey);
+    console.log(
+      "Anthropic key diagnostics:",
+      JSON.stringify({
+        present: Boolean(ANTHROPIC_API_KEY),
+        length: ANTHROPIC_API_KEY.length,
+        looks_like_sk_ant: ANTHROPIC_API_KEY.startsWith("sk-ant-"),
+      })
+    );
+
+    if (!ANTHROPIC_API_KEY) {
+      return new Response(
+        JSON.stringify({ success: false, error: "ANTHROPIC_API_KEY is empty after sanitization" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
