@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, FileText, Printer, Upload, Settings, Eye } from 'lucide-react';
+import { Download, FileText, Printer, Upload, Settings, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { ExportPreview } from '@/components/report/ExportPreview';
+import { TierBadge } from '@/components/intake/TierSelection';
+import { TierEntitlements, ExportNotIncludedMessage } from '@/components/report/TierEntitlements';
+import { TIER_CONFIGURATIONS, DiagnosticTier } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -17,6 +20,7 @@ interface ExportOption {
   description: string;
   formats: string[];
   type: 'prospect' | 'executive' | 'full' | 'briefing';
+  requiredTier: DiagnosticTier;
 }
 
 const exportOptions: ExportOption[] = [
@@ -26,6 +30,7 @@ const exportOptions: ExportOption[] = [
     description: '1-page executive summary for initial outreach',
     formats: ['PDF', 'HTML'],
     type: 'prospect',
+    requiredTier: 'prospect',
   },
   {
     id: 'executive',
@@ -33,6 +38,7 @@ const exportOptions: ExportOption[] = [
     description: '2-5 page summary with key findings and recommendations',
     formats: ['PDF', 'HTML'],
     type: 'executive',
+    requiredTier: 'executive',
   },
   {
     id: 'full',
@@ -40,6 +46,7 @@ const exportOptions: ExportOption[] = [
     description: '20-40 page comprehensive diagnostic with full analysis',
     formats: ['PDF', 'HTML', 'JSON'],
     type: 'full',
+    requiredTier: 'full',
   },
   {
     id: 'notebooklm',
@@ -47,12 +54,21 @@ const exportOptions: ExportOption[] = [
     description: 'Formatted for audio/video briefing generation',
     formats: ['TXT', 'DOC'],
     type: 'briefing',
+    requiredTier: 'full',
   },
 ];
 
+/** Check if an export is available at the given tier */
+function isExportAvailable(exportType: 'prospect' | 'executive' | 'full' | 'notebooklm', currentTier: DiagnosticTier): boolean {
+  const config = TIER_CONFIGURATIONS[currentTier];
+  return config.includedExports.includes(exportType);
+}
+
 export default function ExportDelivery() {
   const navigate = useNavigate();
-  const { report, wizardData } = useDiagnostic();
+  const { report, wizardData, outputConfig } = useDiagnostic();
+  const currentTier = outputConfig.tier;
+  const tierConfig = TIER_CONFIGURATIONS[currentTier];
   const [brandName, setBrandName] = useState(wizardData.companyBasics.companyName || '');
   const [includeCover, setIncludeCover] = useState(true);
 
@@ -258,45 +274,98 @@ ${report.sections.evidenceRegister}
       />
       <PageContent>
         <div className="max-w-4xl mx-auto">
+          {/* Current Tier Banner */}
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 rounded-lg border border-accent/30 bg-accent/5"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <TierBadge tier={currentTier} />
+                <span className="text-sm text-muted-foreground">
+                  {tierConfig.includedExports.length} export format{tierConfig.includedExports.length !== 1 ? 's' : ''} available
+                </span>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => navigate('/diagnostic')}>
+                Change Tier
+              </Button>
+            </div>
+          </motion.div>
+
           {/* Export Options */}
           <div className="grid gap-4 mb-8">
-            {exportOptions.map((option, index) => (
-              <motion.div 
-                key={option.id} 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
-                className="enterprise-card p-5"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-foreground mb-1">{option.title}</h3>
-                    <p className="text-sm text-muted-foreground">{option.description}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ExportPreview
-                      title={option.title}
-                      type={option.type}
-                      content={generatePreviewContent(option.type)}
-                      formats={option.formats}
-                      onExport={(format) => handleExport(option.id, format)}
-                    />
-                    {option.formats.map((format) => (
-                      <Button
-                        key={format}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleExport(option.id, format)}
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        {format}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+            {exportOptions.map((option, index) => {
+              const exportKey = option.type === 'briefing' ? 'notebooklm' : option.type;
+              const isAvailable = isExportAvailable(exportKey, currentTier);
+
+              return (
+                <motion.div 
+                  key={option.id} 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className={cn(
+                    "enterprise-card p-5",
+                    !isAvailable && "opacity-60"
+                  )}
+                >
+                  {isAvailable ? (
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-foreground mb-1">{option.title}</h3>
+                        <p className="text-sm text-muted-foreground">{option.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ExportPreview
+                          title={option.title}
+                          type={option.type}
+                          content={generatePreviewContent(option.type)}
+                          formats={option.formats}
+                          onExport={(format) => handleExport(option.id, format)}
+                        />
+                        {option.formats.map((format) => (
+                          <Button
+                            key={format}
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExport(option.id, format)}
+                          >
+                            <Download className="w-4 h-4 mr-1" />
+                            {format}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-4">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                        <Lock className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-foreground mb-1">{option.title}</h3>
+                        <p className="text-sm text-muted-foreground mb-2">{option.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium">Not included at {tierConfig.name} tier.</span>
+                          {' '}This deliverable requires {TIER_CONFIGURATIONS[option.requiredTier].name} ({TIER_CONFIGURATIONS[option.requiredTier].price}) or higher.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
           </div>
+
+          {/* Tier Entitlements Summary */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
+            className="enterprise-card p-6 mb-6"
+          >
+            <TierEntitlements currentTier={currentTier} />
+          </motion.div>
 
           {/* Branding Options */}
           <motion.div 

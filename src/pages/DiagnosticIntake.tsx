@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Check, Building2, DollarSign, BarChart3, Shield, AlertTriangle, FileCheck } from 'lucide-react';
+import { ChevronRight, Check, Building2, DollarSign, BarChart3, Shield, AlertTriangle, FileCheck, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,21 +12,23 @@ import { useDiagnostic } from '@/lib/diagnosticContext';
 import { situations, signalOptions, generateMockReport } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
+import { TierSelection } from '@/components/intake/TierSelection';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 const steps = [
-  { id: 1, label: 'Company Context', icon: Building2, description: 'Basic company information and industry' },
-  { id: 2, label: 'Financial Position', icon: DollarSign, description: 'Cash, revenue, and capital structure' },
-  { id: 3, label: 'Operating Metrics', icon: BarChart3, description: 'Key performance indicators' },
-  { id: 4, label: 'Constraints', icon: Shield, description: 'Debt, covenants, and obligations' },
-  { id: 5, label: 'Known Risks', icon: AlertTriangle, description: 'Identified concerns and signals' },
-  { id: 6, label: 'Data Quality', icon: FileCheck, description: 'Confidence and completeness' },
+  { id: 1, label: 'Diagnostic Tier', icon: Briefcase, description: 'Select analysis depth and deliverables' },
+  { id: 2, label: 'Company Context', icon: Building2, description: 'Basic company information and industry' },
+  { id: 3, label: 'Financial Position', icon: DollarSign, description: 'Cash, revenue, and capital structure' },
+  { id: 4, label: 'Operating Metrics', icon: BarChart3, description: 'Key performance indicators' },
+  { id: 5, label: 'Constraints', icon: Shield, description: 'Debt, covenants, and obligations' },
+  { id: 6, label: 'Known Risks', icon: AlertTriangle, description: 'Identified concerns and signals' },
+  { id: 7, label: 'Data Quality', icon: FileCheck, description: 'Confidence and completeness' },
 ];
 
 export default function DiagnosticIntake() {
   const navigate = useNavigate();
-  const { wizardData, setWizardData, setReport, setOutputConfig } = useDiagnostic();
+  const { wizardData, setWizardData, setReport, setOutputConfig, outputConfig } = useDiagnostic();
   const [currentStep, setCurrentStep] = useState(1);
 
   const updateCompanyBasics = (field: string, value: string) => {
@@ -78,7 +80,7 @@ export default function DiagnosticIntake() {
       // Then run validation which adds meta.validation
       const validatedReport = await runValidation(aiReport);
       setReport(validatedReport);
-      setOutputConfig({ mode: 'rapid', strictMode: true });
+      setOutputConfig({ mode: 'rapid', strictMode: true, tier: outputConfig.tier });
       toast.success('Diagnostic report generated!');
       navigate('/report');
     } catch (error) {
@@ -90,7 +92,7 @@ export default function DiagnosticIntake() {
         const baseReport = generateMockReport(wizardData, 'rapid');
         const validatedReport = await runValidation(baseReport);
         setReport(validatedReport);
-        setOutputConfig({ mode: 'rapid', strictMode: true });
+        setOutputConfig({ mode: 'rapid', strictMode: true, tier: outputConfig.tier });
         toast.info('Used fallback report generation');
         navigate('/report');
       } catch (fallbackError) {
@@ -104,8 +106,10 @@ export default function DiagnosticIntake() {
   const canProceed = () => {
     switch (currentStep) {
       case 1:
-        return wizardData.companyBasics.companyName && wizardData.companyBasics.industry;
+        return true; // Tier is always selected (defaults to 'full')
       case 2:
+        return wizardData.companyBasics.companyName && wizardData.companyBasics.industry;
+      case 3:
         return wizardData.runwayInputs.cashOnHand && wizardData.runwayInputs.monthlyBurn;
       default:
         return true;
@@ -115,6 +119,14 @@ export default function DiagnosticIntake() {
   const renderStepContent = () => {
     switch (currentStep) {
       case 1:
+        return (
+          <TierSelection
+            selectedTier={outputConfig.tier}
+            onSelectTier={(tier) => setOutputConfig(prev => ({ ...prev, tier }))}
+          />
+        );
+
+      case 2:
         return (
           <div className="space-y-6">
             <div>
@@ -179,7 +191,7 @@ export default function DiagnosticIntake() {
           </div>
         );
 
-      case 2:
+      case 3:
         return (
           <div className="space-y-6">
             <div>
@@ -235,7 +247,7 @@ export default function DiagnosticIntake() {
           </div>
         );
 
-      case 3:
+      case 4:
         return (
           <div className="space-y-6">
             <div>
@@ -262,7 +274,7 @@ export default function DiagnosticIntake() {
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div className="space-y-6">
             <div>
@@ -311,7 +323,7 @@ export default function DiagnosticIntake() {
           </div>
         );
 
-      case 5:
+      case 6:
         return (
           <div className="space-y-6">
             <div>
@@ -349,7 +361,7 @@ export default function DiagnosticIntake() {
           </div>
         );
 
-      case 6:
+      case 7:
         return (
           <div className="space-y-6">
             <div>

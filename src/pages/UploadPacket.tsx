@@ -163,7 +163,7 @@ export default function UploadPacket() {
     // Generate report and navigate to review
     const report = generateMockReport(completeData, 'rapid');
     setReport(report);
-    setOutputConfig({ mode: 'rapid', strictMode: true });
+    setOutputConfig({ mode: 'rapid', strictMode: true, tier: 'full' });
     
     toast.success('Decision Packet loaded');
     navigate('/report');

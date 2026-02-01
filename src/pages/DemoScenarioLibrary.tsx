@@ -151,7 +151,7 @@ export default function DemoScenarioLibrary() {
       const baseReport = generateMockReport(demoData.data, 'rapid');
       const validatedReport = await runValidation(baseReport);
       setReport(validatedReport);
-      setOutputConfig({ mode: 'rapid', strictMode: true });
+      setOutputConfig({ mode: 'rapid', strictMode: true, tier: 'full' });
       navigate('/report');
     } finally {
       setLoadingScenario(null);
