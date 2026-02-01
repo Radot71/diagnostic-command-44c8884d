@@ -23,7 +23,7 @@ export function TierEntitlements({ currentTier, className }: TierEntitlementsPro
       {/* Included */}
       <div className="space-y-2">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Included in this tier
+          Surfaced in this tier
         </p>
         <div className="grid gap-1">
           {config.includedSections.map((section) => (
@@ -42,7 +42,7 @@ export function TierEntitlements({ currentTier, className }: TierEntitlementsPro
       {config.excludedSections.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-border">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Not included at this tier
+            Evaluated but not surfaced at this tier
           </p>
           <div className="grid gap-1">
             {config.excludedSections.map((section) => (
@@ -83,11 +83,11 @@ export function ExportNotIncludedMessage({
       <Lock className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
       <div>
         <p className="text-sm font-medium text-foreground">
-          {exportType} not included at {config.name} tier
+          {exportType} not surfaced at {config.name} tier
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          This deliverable is available with the {nextTierConfig.name} ({nextTierConfig.price}) or higher tier.
-          The diagnostic engine produces complete analysis at all tiers; export scope is determined by engagement level.
+          This deliverable is available at the {nextTierConfig.name} ({nextTierConfig.price}) tier.
+          The selected report reflects the analytical scope surfaced at the chosen diagnostic tier. Additional analysis has been evaluated but is not included in this deliverable.
         </p>
       </div>
     </div>

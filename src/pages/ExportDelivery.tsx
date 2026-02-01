@@ -27,32 +27,32 @@ const exportOptions: ExportOption[] = [
   {
     id: 'prospect',
     title: 'Prospect Snapshot',
-    description: '1-page executive summary for initial outreach',
-    formats: ['PDF', 'HTML'],
+    description: 'Condensed executive summary suitable for initial review and outreach.',
+    formats: ['Preview'],
     type: 'prospect',
     requiredTier: 'prospect',
   },
   {
     id: 'executive',
     title: 'Executive Snapshot',
-    description: '2-5 page summary with key findings and recommendations',
-    formats: ['PDF', 'HTML'],
+    description: 'Expanded summary highlighting key findings, risks, and strategic considerations.',
+    formats: ['Preview', 'PDF', 'HTML'],
     type: 'executive',
     requiredTier: 'executive',
   },
   {
     id: 'full',
     title: 'Full Decision Packet',
-    description: '20-40 page comprehensive diagnostic with full analysis',
-    formats: ['PDF', 'HTML', 'JSON'],
+    description: 'Comprehensive diagnostic documentation including full analysis, assumptions, and execution guidance.',
+    formats: ['Preview', 'PDF', 'HTML', 'JSON'],
     type: 'full',
     requiredTier: 'full',
   },
   {
     id: 'notebooklm',
     title: 'NotebookLM Briefing',
-    description: 'Formatted for audio/video briefing generation',
-    formats: ['TXT', 'DOC'],
+    description: 'Structured diagnostic output formatted for downstream briefing, narration, or audio/video synthesis.',
+    formats: ['Preview', 'TXT', 'DOC'],
     type: 'briefing',
     requiredTier: 'full',
   },
@@ -265,8 +265,8 @@ ${report.sections.evidenceRegister}
   return (
     <EnterpriseLayout>
       <PageHeader 
-        title="Export & Delivery" 
-        subtitle={wizardData.companyBasics.companyName || 'Current Diagnostic'}
+        title="Reports & Exports" 
+        subtitle="Access diagnostic outputs formatted for executive review, decision support, and downstream briefing."
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Reports & Exports' },
@@ -347,7 +347,7 @@ ${report.sections.evidenceRegister}
                         <p className="text-sm text-muted-foreground mb-2">{option.description}</p>
                         <p className="text-xs text-muted-foreground">
                           <span className="font-medium">Not included at {tierConfig.name} tier.</span>
-                          {' '}This deliverable requires {TIER_CONFIGURATIONS[option.requiredTier].name} ({TIER_CONFIGURATIONS[option.requiredTier].price}) or higher.
+                          {' '}This deliverable is available at {TIER_CONFIGURATIONS[option.requiredTier].name} ({TIER_CONFIGURATIONS[option.requiredTier].price}).
                         </p>
                       </div>
                     </div>
@@ -381,10 +381,10 @@ ${report.sections.evidenceRegister}
 
             <div className="grid gap-4 max-w-md">
               <div className="grid gap-2">
-                <Label htmlFor="companyName">Company Name (on cover)</Label>
+                <Label htmlFor="companyName">Company name (cover page)</Label>
                 <Input 
                   id="companyName" 
-                  placeholder="Your Company Name"
+                  placeholder="Company Name"
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
                 />
@@ -400,7 +400,7 @@ ${report.sections.evidenceRegister}
                 >
                   <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground">
-                    Drop logo here or click to upload
+                    Optional. Used for branded cover page inclusion.
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     PNG, JPG up to 2MB
