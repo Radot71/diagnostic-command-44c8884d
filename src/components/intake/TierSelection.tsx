@@ -22,7 +22,7 @@ export function TierSelection({ selectedTier, onSelectTier }: TierSelectionProps
       <div>
         <h3 className="text-lg font-semibold text-foreground mb-2">Select Diagnostic Tier</h3>
         <p className="text-sm text-muted-foreground">
-          Choose the analysis depth appropriate for this engagement. The underlying diagnostic engine produces a complete assessment; your tier determines the scope of deliverables.
+          Choose the analysis depth appropriate for this engagement. The diagnostic engine evaluates a complete analytical model in all cases. Tier selection determines the scope of analysis surfaced in deliverables.
         </p>
       </div>
 
@@ -99,7 +99,7 @@ export function TierSelection({ selectedTier, onSelectTier }: TierSelectionProps
                 {/* Excluded sections */}
                 {tier.excludedSections.length > 0 && (
                   <div className="mt-3 space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Not included at this tier:</p>
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Not included at this tier (evaluated but not fully surfaced):</p>
                     <div className="flex flex-wrap gap-1.5">
                       {tier.excludedSections.slice(0, 3).map((section) => (
                         <span
@@ -127,8 +127,7 @@ export function TierSelection({ selectedTier, onSelectTier }: TierSelectionProps
       {/* Institutional note */}
       <div className="p-4 rounded-lg bg-muted/30 border border-border">
         <p className="text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">Note:</span> All tiers utilize the same underlying diagnostic engine and computational methodology. 
-          Tier selection determines the scope of analysis surfaced in deliverables, not the rigor of the underlying assessment.
+          <span className="font-medium text-foreground">Note:</span> All tiers apply the same diagnostic methodology and computational rigor. Tier selection determines the scope of analysis surfaced in reports, not the completeness of the underlying assessment.
         </p>
       </div>
     </div>
