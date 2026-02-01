@@ -11,6 +11,8 @@ import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/E
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { situations, signalOptions, generateMockReport } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
+import { generateAIReport } from '@/lib/aiAnalysis';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 const steps = [
@@ -70,15 +72,30 @@ export default function DiagnosticIntake() {
   const handleRunDiagnostic = async () => {
     setIsRunning(true);
     try {
-      // Generate the base report first
-      const baseReport = generateMockReport(wizardData, 'rapid');
+      // Use AI-powered analysis via Claude
+      toast.info('Generating AI analysis...', { duration: 10000 });
+      const aiReport = await generateAIReport(wizardData, 'rapid');
       // Then run validation which adds meta.validation
-      const validatedReport = await runValidation(baseReport);
+      const validatedReport = await runValidation(aiReport);
       setReport(validatedReport);
       setOutputConfig({ mode: 'rapid', strictMode: true });
+      toast.success('Diagnostic report generated!');
       navigate('/report');
     } catch (error) {
       console.error('[DiagnosticOS] Diagnostic run failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to generate report');
+      
+      // Fallback to mock report
+      try {
+        const baseReport = generateMockReport(wizardData, 'rapid');
+        const validatedReport = await runValidation(baseReport);
+        setReport(validatedReport);
+        setOutputConfig({ mode: 'rapid', strictMode: true });
+        toast.info('Used fallback report generation');
+        navigate('/report');
+      } catch (fallbackError) {
+        console.error('[DiagnosticOS] Fallback also failed:', fallbackError);
+      }
     } finally {
       setIsRunning(false);
     }
