@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { WizardData, OutputConfig, DiagnosticReport, Situation } from './types';
+import { WizardData, OutputConfig, DiagnosticReport, Situation, DiagnosticTier } from './types';
 
 interface DiagnosticContextType {
   wizardData: WizardData;
@@ -12,6 +12,7 @@ interface DiagnosticContextType {
   setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
   resetWizard: () => void;
   loadDemoScenario: (data: WizardData) => void;
+  setTier: (tier: DiagnosticTier) => void;
 }
 
 const defaultWizardData: WizardData = {
@@ -39,6 +40,7 @@ const defaultWizardData: WizardData = {
 const defaultOutputConfig: OutputConfig = {
   mode: 'rapid',
   strictMode: true,
+  tier: 'full',
 };
 
 const DiagnosticContext = createContext<DiagnosticContextType | undefined>(undefined);
@@ -61,6 +63,10 @@ export function DiagnosticProvider({ children }: { children: ReactNode }) {
     setCurrentStep(0);
   };
 
+  const setTier = (tier: DiagnosticTier) => {
+    setOutputConfig(prev => ({ ...prev, tier }));
+  };
+
   return (
     <DiagnosticContext.Provider
       value={{
@@ -74,6 +80,7 @@ export function DiagnosticProvider({ children }: { children: ReactNode }) {
         setCurrentStep,
         resetWizard,
         loadDemoScenario,
+        setTier,
       }}
     >
       {children}
