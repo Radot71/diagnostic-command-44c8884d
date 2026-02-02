@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { Download, Headphones, FileText, Volume2, Video } from 'lucide-react';
+import { Download, Headphones, FileText, Volume2, Video, Clock, List, MessageSquare, FileInput } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
+import { DecisionFrame } from '@/components/report/DecisionFrame';
 import { toast } from 'sonner';
 
 export default function NotebookLMBriefing() {
@@ -12,7 +13,7 @@ export default function NotebookLMBriefing() {
   if (!report) {
     return (
       <EnterpriseLayout>
-        <PageHeader title="Briefings (NotebookLM)" />
+        <PageHeader title="Briefing Document" />
         <PageContent>
           <div className="max-w-2xl mx-auto text-center py-12">
             <Headphones className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -121,15 +122,22 @@ Confidence Level: ${confidenceScore}%
   return (
     <EnterpriseLayout>
       <PageHeader 
-        title="NotebookLM Briefing" 
+        title="Briefing Document" 
         subtitle={wizardData.companyBasics.companyName || 'Current Diagnostic'}
         breadcrumbs={[
           { label: 'Home', href: '/' },
-          { label: 'Briefings' },
+          { label: 'Briefing Document' },
         ]}
       />
       <PageContent>
         <div className="max-w-4xl mx-auto">
+          {/* Decision Frame */}
+          <DecisionFrame 
+            whatWeKnowOverride="This brief synthesizes diagnostic findings into a format optimized for stakeholder alignment and internal briefing."
+            whyItMattersOverride="Rapid synthesis enables faster decision cycles and ensures all stakeholders operate from a consistent information base."
+            whatToDoOverride="Use this document for internal briefings, audio/video synthesis, or as input for external platforms requiring structured text."
+          />
+
           {/* Info Banner */}
           <div className="enterprise-card p-5 mb-6 bg-accent/5 border-accent/20">
             <div className="flex items-start gap-4">
@@ -137,12 +145,36 @@ Confidence Level: ${confidenceScore}%
                 <Volume2 className="w-5 h-5 text-accent" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground mb-1">Audio/Video Briefing Generation</h3>
+                <h3 className="font-semibold text-foreground mb-1">Briefing Document</h3>
                 <p className="text-sm text-muted-foreground">
-                  This document is designed to be uploaded to NotebookLM to generate an audio or video 
-                  executive briefing. The format is optimized for AI consumption and summary generation.
+                  This brief is optimized for fast synthesis, internal briefing, and stakeholder alignment. 
+                  The format supports downstream audio/video generation and external platform integration.
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Structure Guide */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <div className="p-3 bg-muted/30 rounded-lg border border-border text-center">
+              <Clock className="w-5 h-5 text-muted-foreground mx-auto mb-1" />
+              <p className="text-xs font-medium text-foreground">60-Second Summary</p>
+              <p className="text-xs text-muted-foreground">Key findings only</p>
+            </div>
+            <div className="p-3 bg-muted/30 rounded-lg border border-border text-center">
+              <FileText className="w-5 h-5 text-muted-foreground mx-auto mb-1" />
+              <p className="text-xs font-medium text-foreground">5-Minute Summary</p>
+              <p className="text-xs text-muted-foreground">Full narrative</p>
+            </div>
+            <div className="p-3 bg-muted/30 rounded-lg border border-border text-center">
+              <MessageSquare className="w-5 h-5 text-muted-foreground mx-auto mb-1" />
+              <p className="text-xs font-medium text-foreground">Board Questions</p>
+              <p className="text-xs text-muted-foreground">Anticipated queries</p>
+            </div>
+            <div className="p-3 bg-muted/30 rounded-lg border border-border text-center">
+              <FileInput className="w-5 h-5 text-muted-foreground mx-auto mb-1" />
+              <p className="text-xs font-medium text-foreground">Required Inputs</p>
+              <p className="text-xs text-muted-foreground">Next data needs</p>
             </div>
           </div>
 

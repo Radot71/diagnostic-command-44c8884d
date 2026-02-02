@@ -130,6 +130,34 @@ export function TierSelection({ selectedTier, onSelectTier }: TierSelectionProps
           <span className="font-medium text-foreground">Note:</span> All tiers apply the same diagnostic methodology and computational rigor. Tier selection determines the scope of analysis surfaced in reports, not the completeness of the underlying assessment.
         </p>
       </div>
+
+      {/* Tier-specific guidance */}
+      {selectedTier === 'prospect' && (
+        <div className="p-3 rounded-lg bg-accent/5 border border-accent/20">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">If you do only one thing this week, start here.</span>{' '}
+            This snapshot surfaces the highest-leverage findings for initial review. Additional analysis exists but is not fully surfaced at this depth.
+          </p>
+        </div>
+      )}
+      
+      {selectedTier === 'executive' && (
+        <div className="p-3 rounded-lg bg-accent/5 border border-accent/20">
+          <p className="text-sm text-muted-foreground">
+            This artifact is structured for executive and board-level discussion, focusing on trade-offs, time pressure, and decision sequencing.
+            The kill list highlights actions that appear attractive but increase risk or reduce optionality.
+          </p>
+        </div>
+      )}
+      
+      {selectedTier === 'full' && (
+        <div className="p-3 rounded-lg bg-accent/5 border border-accent/20">
+          <p className="text-sm text-muted-foreground">
+            This diagnostic includes full scenario analysis, sensitivity ranges, assumptions, and evidence lineage suitable for investment committee or diligence review.
+            No additional computation is required to support the conclusions shown.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
