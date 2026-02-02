@@ -22,7 +22,10 @@ export function TierSelection({ selectedTier, onSelectTier }: TierSelectionProps
       <div>
         <h3 className="text-lg font-semibold text-foreground mb-2">Select Diagnostic Tier</h3>
         <p className="text-sm text-muted-foreground">
-          Choose the analysis depth appropriate for this engagement. The diagnostic engine evaluates a complete analytical model in all cases. Tier selection determines the scope of analysis surfaced in deliverables.
+          This diagnostic runs a deterministic institutional engine that produces a decision-grade analysis in seconds — with full audit trail, quantified uncertainty, and clear strategic options.
+        </p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Tier selection determines the scope of analysis surfaced in deliverables — not the rigor of the underlying assessment.
         </p>
       </div>
 
