@@ -113,12 +113,12 @@ export function IntegrityHUD() {
               <TooltipTrigger asChild>
                 <div className="inline-flex items-center gap-1 mt-2 text-xs text-warning cursor-help">
                   <Info className="w-3 h-3" />
-                  Capped at {maxConfidence}%
+                  Constrained at {maxConfidence}%
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs">
                 <p className="text-xs">
-                  Missing: {missingFields.slice(0, 3).map(f => f.label).join(', ')}
+                  Magnitude is directionally material but constrained by missing inputs: {missingFields.slice(0, 3).map(f => f.label).join(', ')}
                   {missingFields.length > 3 && ` +${missingFields.length - 3} more`}
                 </p>
               </TooltipContent>
@@ -129,7 +129,7 @@ export function IntegrityHUD() {
         {/* Low Confidence Banner for non-strict mode */}
         {!outputConfig.strictMode && confidenceScore < 70 && (
           <div className="mt-3 px-3 py-1.5 rounded-md bg-warning/10 border border-warning/20">
-            <span className="text-xs font-medium text-warning">LOW CONFIDENCE</span>
+            <span className="text-xs font-medium text-warning">CONFIDENCE CONSTRAINED</span>
           </div>
         )}
       </div>
@@ -180,8 +180,11 @@ export function IntegrityHUD() {
         <div>
           <h4 className="text-sm font-medium text-foreground mb-2 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-warning" />
-            Missing Data ({missingFields.length})
+            Data Gaps ({missingFields.length})
           </h4>
+          <p className="text-xs text-muted-foreground mb-2">
+            These inputs would increase assessment confidence.
+          </p>
           <ul className="space-y-1">
             {missingFields.map((item, index) => (
               <li
@@ -204,8 +207,11 @@ export function IntegrityHUD() {
       {integrity.missingData.length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">
           <h4 className="text-xs font-medium text-muted-foreground mb-2">
-            Additional Data Gaps
+            Additional Evidence Gaps
           </h4>
+          <p className="text-xs text-muted-foreground/70 mb-2">
+            Information that would strengthen analysis.
+          </p>
           <ul className="space-y-1">
             {integrity.missingData.slice(0, 3).map((item, index) => (
               <li

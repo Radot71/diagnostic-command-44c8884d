@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, FileText, Printer, Upload, Settings, Lock } from 'lucide-react';
+import { Download, FileText, Printer, Upload, Settings, Lock, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { useDiagnostic } from '@/lib/diagnosticContext';
 import { ExportPreview } from '@/components/report/ExportPreview';
 import { TierBadge } from '@/components/intake/TierSelection';
 import { TierEntitlements, ExportNotIncludedMessage } from '@/components/report/TierEntitlements';
+import { DecisionFrame } from '@/components/report/DecisionFrame';
 import { TIER_CONFIGURATIONS, DiagnosticTier } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -274,6 +275,13 @@ ${report.sections.evidenceRegister}
       />
       <PageContent>
         <div className="max-w-4xl mx-auto">
+          {/* Decision Frame */}
+          <DecisionFrame 
+            whatWeKnowOverride="Available formats reflect the selected artifact depth. All exports are generated from the same underlying diagnostic."
+            whyItMattersOverride="Expanded artifacts provide additional synthesis, context, and documentation — not additional computation."
+            whatToDoOverride="Select the format appropriate for your intended audience and distribution channel."
+          />
+
           {/* Current Tier Banner */}
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
@@ -356,6 +364,22 @@ ${report.sections.evidenceRegister}
               );
             })}
           </div>
+
+          {/* Export Confirmation Text */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.12 }}
+            className="mb-6 p-4 rounded-lg bg-muted/30 border border-border"
+          >
+            <div className="flex items-start gap-3">
+              <Info className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">
+                The selected report reflects the analytical scope surfaced at the chosen diagnostic tier. 
+                Additional analysis has been evaluated but is not included in this deliverable.
+              </p>
+            </div>
+          </motion.div>
 
           {/* Tier Entitlements Summary */}
           <motion.div 

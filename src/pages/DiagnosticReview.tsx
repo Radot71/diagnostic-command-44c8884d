@@ -13,6 +13,8 @@ import { ReportSidebar, SeverityIndicator, ConfidenceScore, IntegrityMeter, repo
 import { ReportContent } from '@/components/report/ReportContent';
 import { ValidationBadge } from '@/components/report/ValidationBadge';
 import { DevQAPanel } from '@/components/report/DevQAPanel';
+import { DecisionFrame } from '@/components/report/DecisionFrame';
+import { DecisionPosture, derivePosture } from '@/components/report/DecisionPosture';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -186,15 +188,31 @@ export default function DiagnosticReview() {
             className="flex-1 overflow-auto p-6"
           >
             <div className="max-w-4xl">
+              {/* Decision Frame - Top of every artifact view */}
+              {activeSection === 'situation' && (
+                <DecisionFrame 
+                  whatWeKnowOverride={
+                    confidenceScore >= 70 
+                      ? 'Based on the inputs provided, the system can reliably identify the primary drivers, constraints, and near-term risks.'
+                      : 'Based on available inputs, the system has identified directionally material findings. Confidence is constrained by missing data inputs.'
+                  }
+                  whyItMattersOverride={
+                    wizardData.situation?.urgency === 'critical'
+                      ? 'Time pressure is acute. Window for intervention is narrowing. Delayed action materially increases risk trajectory.'
+                      : 'Time pressure is increasing. If no action is taken, risk becomes harder and more expensive to reverse.'
+                  }
+                />
+              )}
+
               {/* Section Header */}
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-foreground">
                   {reportSections.find(s => s.id === activeSection)?.label}
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  {viewMode === 'executive' && 'Detailed analysis for executive review'}
-                  {viewMode === 'board' && 'Summary format for board presentation'}
-                  {viewMode === 'prospect' && 'Condensed snapshot for prospect outreach'}
+                  {viewMode === 'executive' && 'Structured for executive and board-level discussion, focusing on trade-offs, time pressure, and decision sequencing.'}
+                  {viewMode === 'board' && 'Summary format for board presentation. Emphasizes key findings, material risks, and primary strategic considerations.'}
+                  {viewMode === 'prospect' && 'Condensed summary suitable for initial review and outreach assessment.'}
                 </p>
               </div>
               
@@ -210,9 +228,40 @@ export default function DiagnosticReview() {
           transition={{ duration: 0.3 }}
           className="w-72 border-l border-border bg-card p-4 flex-shrink-0 overflow-auto"
         >
+          {/* Decision Posture Module */}
+          <DecisionPosture
+            posture={derivePosture(
+              wizardData.situation?.urgency,
+              wizardData.runwayInputs.hasDebt,
+              wizardData.signalChecklist.signals.length,
+              confidenceScore
+            )}
+            reason={
+              wizardData.situation?.urgency === 'critical'
+                ? 'Multiple risk factors require immediate attention to preserve optionality.'
+                : wizardData.signalChecklist.signals.length > 0
+                  ? 'Warning signals indicate elevated risk requiring active management.'
+                  : 'Current position allows for measured response with monitoring.'
+            }
+            riskIfDelayed={
+              wizardData.situation?.urgency === 'critical'
+                ? 'Window for intervention is narrowing. Each week of delay compounds exposure.'
+                : 'Delayed action reduces available options and increases remediation cost.'
+            }
+            nextAction={
+              wizardData.runwayInputs.hasDebt
+                ? 'Review debt position and covenant status to assess near-term constraints.'
+                : 'Assess cash position and runway to establish baseline for scenario planning.'
+            }
+            className="mb-4"
+          />
+
           {/* Export Section */}
           <div className="mb-6">
-            <h3 className="text-sm font-semibold text-foreground mb-3">Export & Delivery</h3>
+            <h3 className="text-sm font-semibold text-foreground mb-2">Export & Delivery</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              Available formats reflect the selected artifact depth. All exports are generated from the same underlying diagnostic.
+            </p>
             <div className="space-y-2">
               <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleExportPDF}>
                 <Printer className="w-4 h-4 mr-2" />
@@ -245,15 +294,15 @@ export default function DiagnosticReview() {
               </span>
             </div>
             {confidenceScore < 70 && (
-              <div className="flex items-center gap-2 text-xs text-warning">
-                <AlertCircle className="w-3 h-3" />
-                <span>Below strict mode threshold (70%)</span>
+              <div className="flex items-start gap-2 text-xs text-warning">
+                <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                <span>Magnitude is directionally material but constrained by missing inputs.</span>
               </div>
             )}
             {confidenceScore >= 70 && (
               <div className="flex items-center gap-2 text-xs text-success">
                 <CheckCircle2 className="w-3 h-3" />
-                <span>Meets strict mode requirements</span>
+                <span>Sufficient input data for reliable assessment</span>
               </div>
             )}
             {confidenceScore < 90 && (
