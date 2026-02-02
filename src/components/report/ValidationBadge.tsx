@@ -44,7 +44,8 @@ export function ValidationBadge({ report, className }: ValidationBadgeProps) {
         <p className="text-sm">{badge.tooltip}</p>
         {report.validation && report.validation.ensembleMode !== 'off' && (
           <div className="mt-2 text-xs text-muted-foreground space-y-1">
-            <p>Mode: {report.validation.ensembleMode}</p>
+            <p>Mode: {report.validation.ensembleMode === '3pass' ? '3-pass validation (optional, additive)' : '5-pass validation (optional, additive)'}</p>
+            <p className="text-[10px] text-muted-foreground/70">Core engine runs once; validation runs multiple checks on top.</p>
             <p>Consensus: {Math.round(report.validation.consensusScore * 100)}%</p>
             <p>Evidence: {Math.round(report.validation.evidenceScore * 100)}%</p>
           </div>

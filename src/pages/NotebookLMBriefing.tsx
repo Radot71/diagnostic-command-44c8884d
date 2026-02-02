@@ -97,8 +97,11 @@ ${report.integrity.missingData.map(item => `• ${item}`).join('\n')}
 
 ---
 
-This document is formatted for upload to NotebookLM or similar 
-AI platforms to generate audio or video executive briefings.
+This document is structured for fast synthesis, internal briefing, 
+and stakeholder alignment. It supports audio/video generation and 
+external platform integration.
+
+Findings are deterministic. Commentary is advisory.
 
 Report ID: ${report.id}
 Confidence Level: ${confidenceScore}%
@@ -120,7 +123,7 @@ Confidence Level: ${confidenceScore}%
   };
 
   return (
-    <EnterpriseLayout>
+    <EnterpriseLayout showTransparencyBanner>
       <PageHeader 
         title="Briefing Document" 
         subtitle={wizardData.companyBasics.companyName || 'Current Diagnostic'}

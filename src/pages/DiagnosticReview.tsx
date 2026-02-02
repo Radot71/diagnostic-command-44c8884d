@@ -15,6 +15,8 @@ import { ValidationBadge } from '@/components/report/ValidationBadge';
 import { DevQAPanel } from '@/components/report/DevQAPanel';
 import { DecisionFrame } from '@/components/report/DecisionFrame';
 import { DecisionPosture, derivePosture } from '@/components/report/DecisionPosture';
+import { SystemStatusPanel, AIUsageInfoPanel, ValidationPassDisclosure } from '@/components/report/SystemStatusPanel';
+import { ResultHeadline } from '@/components/report/ResultHeadline';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -87,7 +89,7 @@ export default function DiagnosticReview() {
   };
 
   return (
-    <EnterpriseLayout>
+    <EnterpriseLayout showTransparencyBanner>
       <PageHeader
         title={wizardData.companyBasics.companyName || 'Diagnostic Review'}
         breadcrumbs={[
@@ -188,6 +190,9 @@ export default function DiagnosticReview() {
             className="flex-1 overflow-auto p-6"
           >
             <div className="max-w-4xl">
+              {/* Result Headline - Every artifact */}
+              <ResultHeadline className="mb-4" />
+              
               {/* Decision Frame - Top of every artifact view */}
               {activeSection === 'situation' && (
                 <DecisionFrame 
@@ -277,10 +282,23 @@ export default function DiagnosticReview() {
               </Button>
               <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => navigate('/briefings')}>
                 <Download className="w-4 h-4 mr-2" />
-                NotebookLM Brief
+                Briefing Document
               </Button>
             </div>
           </div>
+
+          {/* System Status Panel */}
+          <SystemStatusPanel 
+            report={report} 
+            sessionId={report.id}
+            className="mb-4"
+          />
+          
+          {/* How AI is Used */}
+          <AIUsageInfoPanel className="mb-4" />
+          
+          {/* Validation Pass Disclosure */}
+          <ValidationPassDisclosure validation={report.validation} className="mb-4" />
 
           {/* Confidence Summary */}
           <div className="mb-6 p-3 bg-muted/30 rounded-lg">
