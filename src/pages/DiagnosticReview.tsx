@@ -17,17 +17,24 @@ import { DecisionFrame } from '@/components/report/DecisionFrame';
 import { DecisionPosture, derivePosture } from '@/components/report/DecisionPosture';
 import { SystemStatusPanel, AIUsageInfoPanel, ValidationPassDisclosure } from '@/components/report/SystemStatusPanel';
 import { ResultHeadline } from '@/components/report/ResultHeadline';
+import { UpgradeNudgeBanner } from '@/components/report/UpgradeNudgeBanner';
+import { ExecutiveCard } from '@/components/report/ExecutiveCard';
+import { BoardMemo } from '@/components/report/BoardMemo';
+import { StakeholderPack, ExecutionRoadmap } from '@/components/report/StakeholderPack';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
 type ViewMode = 'executive' | 'board' | 'prospect';
+type ArtifactView = 'report' | 'executive-card' | 'board-memo' | 'stakeholder-pack' | 'roadmap';
 
 export default function DiagnosticReview() {
   const navigate = useNavigate();
-  const { report, wizardData, resetWizard } = useDiagnostic();
+  const { report, wizardData, resetWizard, outputConfig } = useDiagnostic();
   const [activeSection, setActiveSection] = useState('situation');
   const [viewMode, setViewMode] = useState<ViewMode>('executive');
+  const [artifactView, setArtifactView] = useState<ArtifactView>('report');
+  const currentTier = outputConfig.tier;
 
   if (!report) {
     navigate('/');
@@ -181,47 +188,147 @@ export default function DiagnosticReview() {
             </div>
           </div>
 
+          {/* Artifact Tabs - Tier-based */}
+          <div className="h-10 border-b border-border bg-muted/30 px-6 flex items-center gap-1">
+            <button
+              onClick={() => setArtifactView('report')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                artifactView === 'report' 
+                  ? "bg-card text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Report
+            </button>
+            <button
+              onClick={() => setArtifactView('executive-card')}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                artifactView === 'executive-card' 
+                  ? "bg-card text-foreground shadow-sm" 
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Executive Card
+            </button>
+            {(currentTier === 'executive' || currentTier === 'full') && (
+              <button
+                onClick={() => setArtifactView('board-memo')}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                  artifactView === 'board-memo' 
+                    ? "bg-card text-foreground shadow-sm" 
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Board Memo
+              </button>
+            )}
+            {currentTier === 'full' && (
+              <>
+                <button
+                  onClick={() => setArtifactView('stakeholder-pack')}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                    artifactView === 'stakeholder-pack' 
+                      ? "bg-card text-foreground shadow-sm" 
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Stakeholder Pack
+                </button>
+                <button
+                  onClick={() => setArtifactView('roadmap')}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium rounded transition-colors",
+                    artifactView === 'roadmap' 
+                      ? "bg-card text-foreground shadow-sm" 
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  30/90 Roadmap
+                </button>
+              </>
+            )}
+          </div>
+
           {/* Report Content */}
           <motion.div 
-            key={activeSection}
+            key={`${activeSection}-${artifactView}`}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
             className="flex-1 overflow-auto p-6"
           >
             <div className="max-w-4xl">
-              {/* Result Headline - Every artifact */}
-              <ResultHeadline className="mb-4" />
-              
-              {/* Decision Frame - Top of every artifact view */}
-              {activeSection === 'situation' && (
-                <DecisionFrame 
-                  whatWeKnowOverride={
-                    confidenceScore >= 70 
-                      ? 'Based on the inputs provided, the system can reliably identify the primary drivers, constraints, and near-term risks.'
-                      : 'Based on available inputs, the system has identified directionally material findings. Confidence is constrained by missing data inputs.'
-                  }
-                  whyItMattersOverride={
-                    wizardData.situation?.urgency === 'critical'
-                      ? 'Time pressure is acute. Window for intervention is narrowing. Delayed action materially increases risk trajectory.'
-                      : 'Time pressure is increasing. If no action is taken, risk becomes harder and more expensive to reverse.'
-                  }
+              {/* Upgrade Nudge Banner - for non-full tiers */}
+              {currentTier !== 'full' && artifactView === 'report' && (
+                <UpgradeNudgeBanner 
+                  currentTier={currentTier}
+                  stage={wizardData.situation?.urgency === 'critical' ? 'Crisis' : wizardData.situation?.urgency === 'high' ? 'Degraded' : 'Stable'}
+                  daysToCritical={(() => {
+                    const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
+                    const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
+                    return burn > 0 ? Math.round((cash / burn) * 30) : 0;
+                  })()}
+                  className="mb-4"
                 />
               )}
-
-              {/* Section Header */}
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-foreground">
-                  {reportSections.find(s => s.id === activeSection)?.label}
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {viewMode === 'executive' && 'Structured for executive and board-level discussion, focusing on trade-offs, time pressure, and decision sequencing.'}
-                  {viewMode === 'board' && 'Summary format for board presentation. Emphasizes key findings, material risks, and primary strategic considerations.'}
-                  {viewMode === 'prospect' && 'Condensed summary suitable for initial review and outreach assessment.'}
-                </p>
-              </div>
               
-              <ReportContent content={getSectionContent()} section={activeSection} />
+              {/* Artifact Views */}
+              {artifactView === 'executive-card' && (
+                <ExecutiveCard report={report} wizardData={wizardData} />
+              )}
+              
+              {artifactView === 'board-memo' && (
+                <BoardMemo report={report} wizardData={wizardData} />
+              )}
+              
+              {artifactView === 'stakeholder-pack' && (
+                <StakeholderPack report={report} wizardData={wizardData} />
+              )}
+              
+              {artifactView === 'roadmap' && (
+                <ExecutionRoadmap report={report} wizardData={wizardData} />
+              )}
+              
+              {artifactView === 'report' && (
+                <>
+                  {/* Result Headline - Every artifact */}
+                  <ResultHeadline className="mb-4" />
+                  
+                  {/* Decision Frame - Top of every artifact view */}
+                  {activeSection === 'situation' && (
+                    <DecisionFrame 
+                      whatWeKnowOverride={
+                        confidenceScore >= 70 
+                          ? 'Based on the inputs provided, the system can reliably identify the primary drivers, constraints, and near-term risks.'
+                          : 'Based on available inputs, the system has identified directionally material findings. Confidence is constrained by missing data inputs.'
+                      }
+                      whyItMattersOverride={
+                        wizardData.situation?.urgency === 'critical'
+                          ? 'Time pressure is acute. Window for intervention is narrowing. Delayed action materially increases risk trajectory.'
+                          : 'Time pressure is increasing. If no action is taken, risk becomes harder and more expensive to reverse.'
+                      }
+                    />
+                  )}
+
+                  {/* Section Header */}
+                  <div className="mb-6">
+                    <h2 className="text-xl font-bold text-foreground">
+                      {reportSections.find(s => s.id === activeSection)?.label}
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {viewMode === 'executive' && 'Structured for executive and board-level discussion, focusing on trade-offs, time pressure, and decision sequencing.'}
+                      {viewMode === 'board' && 'Summary format for board presentation. Emphasizes key findings, material risks, and primary strategic considerations.'}
+                      {viewMode === 'prospect' && 'Condensed summary suitable for initial review and outreach assessment.'}
+                    </p>
+                  </div>
+                  
+                  <ReportContent content={getSectionContent()} section={activeSection} />
+                </>
+              )}
             </div>
           </motion.div>
         </div>

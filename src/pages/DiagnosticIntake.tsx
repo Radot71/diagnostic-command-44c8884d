@@ -416,8 +416,7 @@ export default function DiagnosticIntake() {
             <div className="p-4 rounded bg-muted/30 border border-border mt-6">
               <p className="text-sm text-foreground font-medium mb-2">Ready to Generate</p>
               <p className="text-sm text-muted-foreground">
-                This will generate a full Decision Packet and Executive Summary based on the provided inputs. 
-                The output will include scenario analysis, strategic options, and an execution plan.
+                This diagnostic runs a deterministic institutional engine that produces a decision-grade analysis in seconds — with full audit trail, quantified uncertainty, and clear strategic options.
               </p>
             </div>
           </div>
