@@ -10,22 +10,35 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { TransparencyBanner } from './TransparencyBanner';
 
 const navItems = [
   { path: '/diagnostic', label: 'Run Diagnostic', icon: Play },
   { path: '/demos', label: 'Load Demo Scenario', icon: Folder },
   { path: '/reports', label: 'Reports & Exports', icon: FileText },
-  { path: '/briefings', label: 'Briefings (NotebookLM)', icon: Headphones },
+  { path: '/briefings', label: 'Briefing Document', icon: Headphones },
   { path: '/about', label: 'About the System', icon: Info },
 ];
 
 interface EnterpriseLayoutProps {
   children: ReactNode;
+  showTransparencyBanner?: boolean;
+  isDemoMode?: boolean;
 }
 
-export function EnterpriseLayout({ children }: EnterpriseLayoutProps) {
+export function EnterpriseLayout({ 
+  children, 
+  showTransparencyBanner = false,
+  isDemoMode = false 
+}: EnterpriseLayoutProps) {
   const location = useLocation();
   const currentPath = location.pathname;
+  
+  // Show banner on report/review pages
+  const shouldShowBanner = showTransparencyBanner || 
+    currentPath === '/report' || 
+    currentPath === '/reports' ||
+    currentPath === '/briefings';
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -76,6 +89,9 @@ export function EnterpriseLayout({ children }: EnterpriseLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
+        {shouldShowBanner && (
+          <TransparencyBanner variant={isDemoMode ? 'demo' : 'default'} />
+        )}
         {children}
       </main>
     </div>

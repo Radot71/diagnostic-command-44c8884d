@@ -183,7 +183,8 @@ export function IntegrityHUD() {
             Data Gaps ({missingFields.length})
           </h4>
           <p className="text-xs text-muted-foreground mb-2">
-            These inputs would increase assessment confidence.
+            Magnitude is directionally reliable but constrained by missing inputs. 
+            Precision improves with additional data.
           </p>
           <ul className="space-y-1">
             {missingFields.map((item, index) => (

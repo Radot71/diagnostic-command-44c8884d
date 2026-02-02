@@ -51,7 +51,7 @@ const exportOptions: ExportOption[] = [
   },
   {
     id: 'notebooklm',
-    title: 'NotebookLM Briefing',
+    title: 'Briefing Document',
     description: 'Structured diagnostic output formatted for downstream briefing, narration, or audio/video synthesis.',
     formats: ['Preview', 'TXT', 'DOC'],
     type: 'briefing',
@@ -264,7 +264,7 @@ ${report.sections.evidenceRegister}
   };
 
   return (
-    <EnterpriseLayout>
+    <EnterpriseLayout showTransparencyBanner>
       <PageHeader 
         title="Reports & Exports" 
         subtitle="Access diagnostic outputs formatted for executive review, decision support, and downstream briefing."

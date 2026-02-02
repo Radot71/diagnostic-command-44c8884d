@@ -1,6 +1,7 @@
 import { 
-  AlertTriangle, TrendingUp, Target, Route, ClipboardList, FileCheck, Shield
+  AlertTriangle, TrendingUp, Target, Route, ClipboardList, FileCheck, Shield, Info
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 export const reportSections = [
@@ -58,9 +59,19 @@ export function SeverityIndicator({ level }: { level: string }) {
   const { label, class: className } = config[level as keyof typeof config] || config.medium;
   
   return (
-    <span className={cn('severity-badge', className)} role="status" aria-label={`Severity: ${label}`}>
-      {label}
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className={cn('severity-badge cursor-help', className)} role="status" aria-label={`Severity: ${label}`}>
+          {label}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-xs">
+        <p className="text-xs">
+          Severity reflects predefined thresholds for attention and runway. 
+          Thresholds are documented in the system configuration.
+        </p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

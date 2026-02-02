@@ -1,6 +1,7 @@
-import { Shield, Target, BarChart3, FileCheck, Lock, Zap, Activity, Check, ExternalLink } from 'lucide-react';
+import { Shield, Target, BarChart3, FileCheck, Lock, Zap, Activity, Check, Info } from 'lucide-react';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { EvidenceBadge } from '@/components/report/EvidencePopover';
+import { AIUsageInfoPanel } from '@/components/report/SystemStatusPanel';
 import { motion } from 'framer-motion';
 
 const features = [
@@ -40,12 +41,12 @@ const outputTypes = [
   {
     name: 'Prospect Snapshot',
     pages: '1 page',
-    description: 'Quick-hit summary for initial outreach and prospecting',
+    description: 'Initial diagnostic summary for early screening and qualification',
   },
   {
     name: 'Executive Snapshot',
     pages: '2-5 pages',
-    description: 'Board-ready summary with key findings and recommendations',
+    description: 'Board-ready summary highlighting key findings and material risks',
   },
   {
     name: 'Full Decision Packet',
@@ -53,9 +54,9 @@ const outputTypes = [
     description: 'Comprehensive diagnostic with full scenario analysis and execution plan',
   },
   {
-    name: 'NotebookLM Briefing',
+    name: 'Briefing Document',
     pages: 'Variable',
-    description: 'Formatted for audio/video briefing generation',
+    description: 'Structured output for downstream briefing and stakeholder alignment',
   },
 ];
 
@@ -117,11 +118,14 @@ export default function AboutSystem() {
               for executives, boards, and investors. The system consumes structured inputs and generates 
               comprehensive, evidence-tagged analysis across standardized dimensions.
             </p>
-            <p className="text-muted-foreground leading-relaxed">
+            <p className="text-muted-foreground leading-relaxed mb-4">
               All outputs are deterministic, auditable, and formatted for institutional consumption. 
               The system is designed for private equity, turnaround, and strategic decision contexts 
               where precision and accountability are paramount.
             </p>
+            
+            {/* How AI is Used Panel */}
+            <AIUsageInfoPanel className="mt-6" />
           </motion.div>
 
           {/* Core Capabilities */}
