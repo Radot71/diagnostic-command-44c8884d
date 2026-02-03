@@ -73,6 +73,81 @@ function isExportAvailable(exportType: 'prospect' | 'executive' | 'full' | 'note
   return config.includedExports.includes(exportType);
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function escapeHtml(unsafe: string) {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function buildPrintableHtmlDocument(params: { title: string; subtitle?: string; bodyPre: string }) {
+  const { title, subtitle, bodyPre } = params;
+  const safeTitle = escapeHtml(title);
+  const safeSubtitle = subtitle ? escapeHtml(subtitle) : '';
+  const safeBody = escapeHtml(bodyPre);
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${safeTitle}</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #0b1220; }
+      main { max-width: 900px; margin: 0 auto; padding: 32px 28px 48px; }
+      h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: -0.01em; }
+      p.sub { margin: 0 0 18px; color: #3a465a; font-size: 13px; }
+      pre { white-space: pre-wrap; line-height: 1.45; font-size: 13px; background: #ffffff; border: 1px solid #e6eaf2; border-radius: 10px; padding: 18px; }
+      footer { margin-top: 16px; font-size: 11px; color: #57657d; }
+      @media print { main { padding: 0; } pre { border: none; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${safeTitle}</h1>
+      ${subtitle ? `<p class="sub">${safeSubtitle}</p>` : ''}
+      <pre>${safeBody}</pre>
+      <footer>
+        The selected report reflects the analytical scope surfaced at the chosen diagnostic tier. Additional analysis has been evaluated but is not included in this deliverable.
+      </footer>
+    </main>
+  </body>
+</html>`;
+}
+
+function openPrintWindow(html: string, windowTitle: string) {
+  const w = window.open('', '_blank', 'noopener,noreferrer');
+  if (!w) return false;
+
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  w.document.title = windowTitle;
+  w.focus();
+
+  // Allow the browser a moment to layout before printing.
+  setTimeout(() => {
+    w.print();
+  }, 250);
+
+  return true;
+}
+
 export default function ExportDelivery() {
   const navigate = useNavigate();
   const { report, wizardData, outputConfig } = useDiagnostic();
@@ -101,32 +176,132 @@ export default function ExportDelivery() {
     );
   }
 
-  const handleExport = (optionId: string, format: string) => {
+  const handleExport = (option: ExportOption, format: string) => {
+    if (format === 'Preview') return;
+
+    const filenameBase = `diagnostic-${option.id}-${report.id}`;
+
     if (format === 'JSON') {
       const dataStr = JSON.stringify(report, null, 2);
-      const blob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `diagnostic-${optionId}-${report.id}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(new Blob([dataStr], { type: 'application/json' }), `${filenameBase}.json`);
       toast.success('JSON exported successfully');
-    } else if (format === 'TXT' || format === 'DOC') {
-      const brief = generateBriefingDocument();
-      const blob = new Blob([brief], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `briefing-${report.id}.${format.toLowerCase()}`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Briefing document exported');
-    } else {
-      toast.success(`${format} export started`, { 
-        description: `Your ${optionId} report will download shortly.` 
-      });
+      return;
     }
+
+    const getPlainText = () => {
+      if (option.id === 'deck') {
+        // Plaintext fallback if someone ever adds non-PDF formats.
+        return `BOARD DECK\n==========\n\n${report.sections.executiveBrief}\n\n${report.sections.scenarios}\n\n${report.sections.options}`;
+      }
+      if (option.type === 'notebooklm') return generateBriefingDocument();
+      return generatePreviewContent(option.type);
+    };
+
+    const buildHtmlForOption = () => {
+      if (option.id === 'deck') {
+        const companyName = wizardData.companyBasics.companyName || 'Target Company';
+        const situation = wizardData.situation?.title || 'General Assessment';
+        const urgency = wizardData.situation?.urgency || 'medium';
+        const stage = urgency === 'critical' ? 'Crisis' : urgency === 'high' ? 'Degraded' : 'Stable';
+
+        const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
+        const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
+        const daysToCritical = burn > 0 ? Math.round((cash / burn) * 30) : 0;
+
+        const slides: Array<{ title: string; body: string }> = [
+          {
+            title: `Title — ${companyName}`,
+            body: `${stage} posture • ${daysToCritical} days to critical threshold\n\nReport ID: ${report.id}\nGenerated: ${new Date(report.generatedAt).toLocaleDateString()}`,
+          },
+          { title: 'Situation', body: report.sections.executiveBrief },
+          { title: 'Financial Impact', body: report.sections.valueLedger || 'Value ledger not available in this run.' },
+          { title: 'Scenarios', body: report.sections.scenarios },
+          { title: 'Options', body: report.sections.options },
+          { title: 'Risks', body: `Severity: ${urgency.toUpperCase()}\n\nSignals:\n${wizardData.signalChecklist.signals.map((s) => `- ${s}`).join('\n') || '- None identified'}` },
+          { title: '30-Day Roadmap', body: report.sections.executionPlan },
+          { title: '90-Day Roadmap', body: 'See full roadmap artifact in the workbench for narrative scaffolding.' },
+          { title: 'KPIs', body: 'KPIs are derived from existing inputs; include finance + execution leading indicators as applicable.' },
+          { title: 'Evidence Summary', body: report.sections.evidenceRegister },
+        ];
+
+        const safeCompany = escapeHtml(companyName);
+        const slideHtml = slides
+          .map((s) => {
+            const title = escapeHtml(s.title);
+            const body = escapeHtml(s.body);
+            return `
+<section class="slide">
+  <header>
+    <h2>${title}</h2>
+    <div class="meta">${safeCompany} • Board Slide Deck</div>
+  </header>
+  <pre>${body}</pre>
+</section>`;
+          })
+          .join('\n');
+
+        return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(companyName)} — Board Deck</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; color: #0b1220; }
+      .slide { page-break-after: always; padding: 44px 44px 52px; }
+      header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+      h2 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+      .meta { font-size: 12px; color: #3a465a; }
+      pre { margin: 0; white-space: pre-wrap; line-height: 1.45; font-size: 13px; background: #ffffff; border: 1px solid #e6eaf2; border-radius: 12px; padding: 18px; }
+      @media print { .slide { padding: 0; } pre { border: none; } }
+    </style>
+  </head>
+  <body>
+    ${slideHtml}
+  </body>
+</html>`;
+      }
+
+      return buildPrintableHtmlDocument({
+        title: option.title,
+        subtitle: wizardData.companyBasics.companyName || undefined,
+        bodyPre: getPlainText(),
+      });
+    };
+
+    if (format === 'HTML') {
+      const html = buildHtmlForOption();
+      downloadBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), `${filenameBase}.html`);
+      toast.success('HTML exported successfully');
+      return;
+    }
+
+    if (format === 'TXT') {
+      downloadBlob(new Blob([getPlainText()], { type: 'text/plain;charset=utf-8' }), `${filenameBase}.txt`);
+      toast.success('TXT exported successfully');
+      return;
+    }
+
+    if (format === 'DOC') {
+      // Basic Word-compatible export (HTML wrapped as .doc works well across clients)
+      const html = buildHtmlForOption();
+      downloadBlob(new Blob([html], { type: 'application/msword' }), `${filenameBase}.doc`);
+      toast.success('DOC exported successfully');
+      return;
+    }
+
+    if (format === 'PDF') {
+      const ok = openPrintWindow(buildHtmlForOption(), `${option.title} — ${report.id}`);
+      if (!ok) {
+        toast.error('Popup blocked', { description: 'Allow popups to print / save as PDF.' });
+        return;
+      }
+      toast.success('Print dialog opened', { description: 'Choose “Save as PDF” to download.' });
+      return;
+    }
+
+    toast.error('Unsupported export format');
   };
 
   const generateBriefingDocument = () => {
@@ -313,6 +488,7 @@ ${report.sections.evidenceRegister}
           <div className="grid gap-4 mb-8">
             {exportOptions.map((option, index) => {
               const isAvailable = isExportAvailable(option.type, currentTier);
+              const actionableFormats = option.formats.filter((f) => f !== 'Preview');
 
               return (
                 <motion.div 
@@ -336,15 +512,15 @@ ${report.sections.evidenceRegister}
                           title={option.title}
                           type={option.type}
                           content={generatePreviewContent(option.type)}
-                          formats={option.formats}
-                          onExport={(format) => handleExport(option.id, format)}
+                           formats={actionableFormats}
+                           onExport={(format) => handleExport(option, format)}
                         />
-                        {option.formats.map((format) => (
+                         {actionableFormats.map((format) => (
                           <Button
                             key={format}
                             variant="outline"
                             size="sm"
-                            onClick={() => handleExport(option.id, format)}
+                             onClick={() => handleExport(option, format)}
                           >
                             <Download className="w-4 h-4 mr-1" />
                             {format}
@@ -459,7 +635,13 @@ ${report.sections.evidenceRegister}
             <Button variant="outline" onClick={() => navigate('/report')}>
               Back to Review
             </Button>
-            <Button onClick={() => handleExport('full', 'PDF')}>
+            <Button
+              onClick={() => {
+                const fullOption = exportOptions.find((o) => o.id === 'full');
+                if (!fullOption) return;
+                handleExport(fullOption, 'PDF');
+              }}
+            >
               <Printer className="w-4 h-4 mr-2" />
               Print Full Packet
             </Button>

@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Eye, EyeOff, Download, FileText, Printer } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Eye, Download, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +15,8 @@ interface ExportPreviewProps {
 
 export function ExportPreview({ title, type, content, onExport, formats }: ExportPreviewProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const exportFormats = useMemo(() => formats.filter((f) => f !== 'Preview'), [formats]);
 
   const typeConfig = {
     prospect: {
@@ -55,6 +57,9 @@ export function ExportPreview({ title, type, content, onExport, formats }: Expor
             <FileText className="w-5 h-5" />
             {title} Preview
           </DialogTitle>
+          <DialogDescription>
+            Review the generated deliverable, then export in an available format.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="mt-4">
@@ -67,7 +72,7 @@ export function ExportPreview({ title, type, content, onExport, formats }: Expor
           </div>
           
           {/* Content preview */}
-          <div className={cn("bg-white rounded-lg border border-border", config.className)}>
+          <div className={cn("bg-background rounded-lg border border-border", config.className)}>
             <ScrollArea className="h-[400px]">
               <div className="p-6">
                 <pre className="whitespace-pre-wrap text-sm text-foreground font-sans leading-relaxed">
@@ -83,7 +88,7 @@ export function ExportPreview({ title, type, content, onExport, formats }: Expor
               Ready to export
             </p>
             <div className="flex items-center gap-2">
-              {formats.map((format) => (
+              {exportFormats.map((format) => (
                 <Button
                   key={format}
                   variant="outline"
