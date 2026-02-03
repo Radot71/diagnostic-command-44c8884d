@@ -20,7 +20,7 @@ interface ExportOption {
   title: string;
   description: string;
   formats: string[];
-  type: 'prospect' | 'executive' | 'full' | 'briefing';
+  type: 'prospect' | 'executive' | 'full' | 'notebooklm';
   requiredTier: DiagnosticTier;
 }
 
@@ -62,7 +62,7 @@ const exportOptions: ExportOption[] = [
     title: 'Briefing Document',
     description: 'Structured diagnostic output formatted for downstream briefing, narration, or audio/video synthesis.',
     formats: ['Preview', 'TXT', 'DOC'],
-    type: 'briefing',
+    type: 'notebooklm',
     requiredTier: 'full',
   },
 ];
@@ -263,7 +263,7 @@ ${report.sections.executionPlan}
 ${report.sections.evidenceRegister}
 `;
 
-      case 'briefing':
+      case 'notebooklm':
         return generateBriefingDocument();
 
       default:
@@ -312,8 +312,7 @@ ${report.sections.evidenceRegister}
           {/* Export Options */}
           <div className="grid gap-4 mb-8">
             {exportOptions.map((option, index) => {
-              const exportKey = option.type === 'briefing' ? 'notebooklm' : option.type;
-              const isAvailable = isExportAvailable(exportKey, currentTier);
+              const isAvailable = isExportAvailable(option.type, currentTier);
 
               return (
                 <motion.div 

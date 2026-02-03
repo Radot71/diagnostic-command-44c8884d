@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 interface ExportPreviewProps {
   title: string;
-  type: 'prospect' | 'executive' | 'full' | 'briefing';
+  type: 'prospect' | 'executive' | 'full' | 'notebooklm';
   content: string;
   onExport: (format: string) => void;
   formats: string[];
@@ -32,7 +32,7 @@ export function ExportPreview({ title, type, content, onExport, formats }: Expor
       description: 'Comprehensive decision packet',
       className: 'border-l-4 border-l-warning',
     },
-    briefing: {
+    notebooklm: {
       pages: 'Variable',
       description: 'Formatted for audio/video generation',
       className: 'border-l-4 border-l-info',
