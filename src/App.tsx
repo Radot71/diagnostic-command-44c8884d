@@ -14,6 +14,7 @@ import ExportDelivery from "./pages/ExportDelivery";
 import NotebookLMBriefing from "./pages/NotebookLMBriefing";
 import AboutSystem from "./pages/AboutSystem";
 import UploadPacket from "./pages/UploadPacket";
+import LiveRunHarness from "./pages/LiveRunHarness";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/report" element={<DiagnosticReview />} />
             <Route path="/briefings" element={<NotebookLMBriefing />} />
             <Route path="/about" element={<AboutSystem />} />
+            <Route path="/live-run-harness" element={<LiveRunHarness />} />
             
             {/* Legacy Routes (redirect support) */}
             <Route path="/intake" element={<DiagnosticIntake />} />

@@ -7,7 +7,8 @@ import {
   FileText, 
   Headphones, 
   Info,
-  ChevronRight
+  ChevronRight,
+  FlaskConical
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { TransparencyBanner } from './TransparencyBanner';
@@ -18,6 +19,7 @@ const navItems = [
   { path: '/reports', label: 'Reports & Exports', icon: FileText },
   { path: '/briefings', label: 'Briefing Document', icon: Headphones },
   { path: '/about', label: 'About the System', icon: Info },
+  { path: '/live-run-harness', label: 'Live Run Harness', icon: FlaskConical },
 ];
 
 interface EnterpriseLayoutProps {
