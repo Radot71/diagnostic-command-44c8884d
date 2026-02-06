@@ -24,6 +24,7 @@ import { StakeholderPack, ExecutionRoadmap } from '@/components/report/Stakehold
 import { GovernanceHeader } from '@/components/report/GovernanceHeader';
 import { UrgencyBanner } from '@/components/report/UrgencyBanner';
 import { EvidenceGuardrails } from '@/components/report/EvidenceGuardrails';
+import { OtherSideReasoning } from '@/components/report/OtherSideReasoning';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -361,6 +362,14 @@ export default function DiagnosticReview() {
                       }
                     />
                   )}
+
+                  {/* Other-Side Reasoning — all tiers, depth varies */}
+                  <OtherSideReasoning
+                    report={report}
+                    wizardData={wizardData}
+                    currentTier={currentTier}
+                    className="mb-6"
+                  />
 
                   {/* Section Header */}
                   <div className="mb-6">
