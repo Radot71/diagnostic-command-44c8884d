@@ -670,8 +670,20 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-medium text-foreground">{pack.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-medium text-foreground">{pack.name}</h4>
+                          {pack.id === 'liquidity-wall' && (
+                            <span className="px-1.5 py-0.5 bg-warning/10 text-warning text-xs font-medium rounded">
+                              Reference Case
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground mt-1">{pack.description}</p>
+                        {pack.id === 'liquidity-wall' && (
+                          <p className="text-xs text-muted-foreground mt-2 font-mono">
+                            Demo: Cascade Manufacturing • $3.2M cash • $1.4M burn • 2.3mo runway • $42M debt due 60d
+                          </p>
+                        )}
                       </div>
                       {selectedPack === pack.id && (
                         <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" />
@@ -819,7 +831,18 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                             {exp.tier}
                           </Badge>
                         </TableCell>
-                        <TableCell>{exp.format}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span>{exp.format}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {exp.format === 'HTML' && 'Board-readable view'}
+                              {exp.format === 'PDF' && 'Lender-ready artifact'}
+                              {exp.format === 'JSON' && 'Machine-readable contract'}
+                              {exp.format === 'Markdown' && 'AI briefing format'}
+                              {exp.format === 'Copy' && 'Clipboard export'}
+                            </span>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           {exp.status === 'pass' && (
                             <span className="flex items-center gap-1 text-success text-sm">
