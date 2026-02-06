@@ -1,9 +1,11 @@
-import { Users, Building2, DollarSign, FileText, Presentation, Calendar, Map } from 'lucide-react';
+import { Users, Building2, DollarSign, FileText, Presentation, Calendar, Map, Shield } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { WizardData, DiagnosticReport } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { HowToUsePacket } from './HowToUsePacket';
+import { EvidenceGuardrails } from './EvidenceGuardrails';
 
 interface StakeholderPackProps {
   report: DiagnosticReport;
@@ -12,8 +14,8 @@ interface StakeholderPackProps {
 }
 
 /**
- * Tier 3 — Full Decision Packet: Stakeholder Pack
- * Board Memo, Investor Update, CFO Briefing templates
+ * Tier 3 — Full Decision Packet: Board & Lender Command Center
+ * Stakeholder Pack with Board Memo, Investor Update, CFO Briefing templates
  */
 export function StakeholderPack({ report, wizardData, className }: StakeholderPackProps) {
   const confidenceScore = Math.round(
@@ -29,10 +31,42 @@ export function StakeholderPack({ report, wizardData, className }: StakeholderPa
   const runwayMonths = burn > 0 ? cash / burn : 99;
   
   const companyName = wizardData.companyBasics.companyName || 'Target Company';
+  
+  // Evidence quality assessment
+  const evidenceQuality: 'low' | 'medium' | 'high' = 
+    report.integrity.evidenceQuality < 40 ? 'low' 
+    : report.integrity.evidenceQuality < 70 ? 'medium' 
+    : 'high';
 
   return (
     <div className={cn("space-y-6", className)}>
-      <div className="flex items-center gap-2 mb-4">
+      {/* Header */}
+      <Card className="border-accent/20">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
+                Tier 3 — Full Decision Packet
+              </p>
+              <CardTitle className="text-xl">Board & Lender Command Center</CardTitle>
+            </div>
+            <span className={cn(
+              "px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wide",
+              stage === 'Crisis' && "bg-destructive/10 text-destructive",
+              stage === 'Degraded' && "bg-warning/10 text-warning",
+              stage === 'Stable' && "bg-success/10 text-success"
+            )}>
+              {stage}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {companyName} • Complete Governance Package
+          </p>
+        </CardHeader>
+      </Card>
+      
+      {/* Stakeholder Templates */}
+      <div className="flex items-center gap-2 mb-2">
         <Users className="w-5 h-5 text-accent" />
         <h2 className="text-lg font-semibold text-foreground">Stakeholder Pack</h2>
       </div>
@@ -201,6 +235,18 @@ export function StakeholderPack({ report, wizardData, className }: StakeholderPa
           </CardContent>
         </Card>
       </div>
+      
+      {/* Evidence Guardrails */}
+      <EvidenceGuardrails
+        missingData={report.integrity.missingData}
+        evidenceQuality={evidenceQuality}
+        confidence={confidenceScore}
+      />
+      
+      {/* Footer Note */}
+      <div className="px-4 py-3 bg-muted/30 border border-border rounded text-xs text-muted-foreground italic">
+        This packet functions as a command center for crisis governance and stakeholder coordination.
+      </div>
     </div>
   );
 }
@@ -209,12 +255,46 @@ export function StakeholderPack({ report, wizardData, className }: StakeholderPa
  * 30/90 Day Execution Roadmap component
  */
 export function ExecutionRoadmap({ report, wizardData, className }: StakeholderPackProps) {
+  const stage = wizardData.situation?.urgency === 'critical' ? 'Crisis' 
+    : wizardData.situation?.urgency === 'high' ? 'Degraded' 
+    : 'Stable';
+    
+  const confidenceScore = Math.round(
+    (report.integrity.completeness + report.integrity.evidenceQuality + report.integrity.confidence) / 3
+  );
+  
+  // Evidence quality assessment
+  const evidenceQuality: 'low' | 'medium' | 'high' = 
+    report.integrity.evidenceQuality < 40 ? 'low' 
+    : report.integrity.evidenceQuality < 70 ? 'medium' 
+    : 'high';
+    
   return (
     <div className={cn("space-y-6", className)}>
-      <div className="flex items-center gap-2 mb-4">
-        <Calendar className="w-5 h-5 text-accent" />
-        <h2 className="text-lg font-semibold text-foreground">30/90 Day Execution Roadmap</h2>
-      </div>
+      {/* Header */}
+      <Card className="border-accent/20">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">
+                Tier 3 — Full Decision Packet
+              </p>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-accent" />
+                30/90 Day Execution Roadmap
+              </CardTitle>
+            </div>
+            <span className={cn(
+              "px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wide",
+              stage === 'Crisis' && "bg-destructive/10 text-destructive",
+              stage === 'Degraded' && "bg-warning/10 text-warning",
+              stage === 'Stable' && "bg-success/10 text-success"
+            )}>
+              {stage}
+            </span>
+          </div>
+        </CardHeader>
+      </Card>
       
       {/* 30 Days */}
       <Card>
@@ -281,6 +361,24 @@ export function ExecutionRoadmap({ report, wizardData, className }: StakeholderP
           </div>
         </CardContent>
       </Card>
+      
+      {/* How To Use This Packet */}
+      <HowToUsePacket 
+        hasDebt={wizardData.runwayInputs.hasDebt}
+        severity={wizardData.situation?.urgency || 'medium'}
+      />
+      
+      {/* Evidence Guardrails */}
+      <EvidenceGuardrails
+        missingData={report.integrity.missingData}
+        evidenceQuality={evidenceQuality}
+        confidence={confidenceScore}
+      />
+      
+      {/* System Disclosure */}
+      <div className="px-4 py-3 bg-muted/30 border border-border rounded text-xs text-muted-foreground italic">
+        This system quantifies risk, surfaces tradeoffs, and documents evidence — it does not replace judgment.
+      </div>
     </div>
   );
 }

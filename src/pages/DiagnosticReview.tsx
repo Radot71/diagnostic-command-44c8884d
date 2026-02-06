@@ -21,6 +21,9 @@ import { UpgradeNudgeBanner } from '@/components/report/UpgradeNudgeBanner';
 import { ExecutiveCard } from '@/components/report/ExecutiveCard';
 import { BoardMemo } from '@/components/report/BoardMemo';
 import { StakeholderPack, ExecutionRoadmap } from '@/components/report/StakeholderPack';
+import { GovernanceHeader } from '@/components/report/GovernanceHeader';
+import { UrgencyBanner } from '@/components/report/UrgencyBanner';
+import { EvidenceGuardrails } from '@/components/report/EvidenceGuardrails';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -95,8 +98,45 @@ export default function DiagnosticReview() {
     }
   };
 
+  // Evidence quality assessment
+  const evidenceQuality: 'low' | 'medium' | 'high' = 
+    report.integrity.evidenceQuality < 40 ? 'low' 
+    : report.integrity.evidenceQuality < 70 ? 'medium' 
+    : 'high';
+  
+  // Calculate days to action for urgency banner
+  const daysToAction = (() => {
+    const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
+    const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
+    return burn > 0 ? Math.round((cash / burn) * 30) : 90;
+  })();
+  
+  // Handle tier upgrade
+  const handleUpgrade = (tier: 'executive' | 'full') => {
+    toast.info(`Upgrade to ${tier === 'executive' ? 'Executive Snapshot ($10,000)' : 'Full Decision Packet ($20,000)'}`, {
+      description: 'Contact your account representative to upgrade.',
+    });
+  };
+
   return (
     <EnterpriseLayout showTransparencyBanner>
+      {/* Urgency Banner - Sticky for CRITICAL severity */}
+      <UrgencyBanner
+        severity={wizardData.situation?.urgency || 'medium'}
+        daysToAction={daysToAction}
+        currentTier={currentTier}
+        onUpgrade={() => handleUpgrade(currentTier === 'prospect' ? 'executive' : 'full')}
+      />
+      
+      {/* Governance Header */}
+      <GovernanceHeader
+        severity={wizardData.situation?.urgency || 'medium'}
+        confidence={confidenceScore}
+        completeness={report.integrity.completeness}
+        evidenceQuality={evidenceQuality}
+        companyName={wizardData.companyBasics.companyName}
+      />
+      
       <PageHeader
         title={wizardData.companyBasics.companyName || 'Diagnostic Review'}
         breadcrumbs={[
@@ -278,11 +318,19 @@ export default function DiagnosticReview() {
               
               {/* Artifact Views */}
               {artifactView === 'executive-card' && (
-                <ExecutiveCard report={report} wizardData={wizardData} />
+                <ExecutiveCard 
+                  report={report} 
+                  wizardData={wizardData} 
+                  onUpgrade={() => handleUpgrade('executive')}
+                />
               )}
               
               {artifactView === 'board-memo' && (
-                <BoardMemo report={report} wizardData={wizardData} />
+                <BoardMemo 
+                  report={report} 
+                  wizardData={wizardData} 
+                  onUpgrade={() => handleUpgrade('full')}
+                />
               )}
               
               {artifactView === 'stakeholder-pack' && (
