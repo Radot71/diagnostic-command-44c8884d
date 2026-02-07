@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { calcRunwayMonths } from '@/lib/currencyUtils';
 import { useNavigate } from 'react-router-dom';
 import { 
   Download, Printer, FileJson, FileText, Clock, 
@@ -110,11 +111,7 @@ export default function DiagnosticReview() {
     : 'high';
   
   // Calculate days to action for urgency banner
-  const daysToAction = (() => {
-    const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
-    const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
-    return burn > 0 ? Math.round((cash / burn) * 30) : 90;
-  })();
+  const daysToAction = Math.round(calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn) * 30);
   
   // Handle tier upgrade
   const handleUpgrade = (tier: 'executive' | 'full') => {
@@ -319,11 +316,7 @@ export default function DiagnosticReview() {
                 <UpgradeNudgeBanner 
                   currentTier={currentTier}
                   stage={wizardData.situation?.urgency === 'critical' ? 'Crisis' : wizardData.situation?.urgency === 'high' ? 'Degraded' : 'Stable'}
-                  daysToCritical={(() => {
-                    const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
-                    const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
-                    return burn > 0 ? Math.round((cash / burn) * 30) : 0;
-                  })()}
+                   daysToCritical={Math.round(calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn) * 30)}
                   className="mb-4"
                 />
               )}

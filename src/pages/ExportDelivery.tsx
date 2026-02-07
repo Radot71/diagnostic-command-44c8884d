@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { calcRunwayMonths } from '@/lib/currencyUtils';
 import { useNavigate } from 'react-router-dom';
 import { Download, FileText, Printer, Upload, Settings, Lock, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -204,9 +205,7 @@ export default function ExportDelivery() {
         const urgency = wizardData.situation?.urgency || 'medium';
         const stage = urgency === 'critical' ? 'Crisis' : urgency === 'high' ? 'Degraded' : 'Stable';
 
-        const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
-        const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
-        const daysToCritical = burn > 0 ? Math.round((cash / burn) * 30) : 0;
+        const daysToCritical = Math.round(calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn) * 30);
 
         const slides: Array<{ title: string; body: string }> = [
           {

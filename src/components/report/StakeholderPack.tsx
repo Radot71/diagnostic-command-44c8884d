@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { WizardData, DiagnosticReport } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { calcRunwayMonths } from '@/lib/currencyUtils';
 import { HowToUsePacket } from './HowToUsePacket';
 import { EvidenceGuardrails } from './EvidenceGuardrails';
 
@@ -26,9 +27,7 @@ export function StakeholderPack({ report, wizardData, className }: StakeholderPa
     : wizardData.situation?.urgency === 'high' ? 'Degraded' 
     : 'Stable';
   
-  const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
-  const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
-  const runwayMonths = burn > 0 ? cash / burn : 99;
+  const runwayMonths = calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn);
   
   const companyName = wizardData.companyBasics.companyName || 'Target Company';
   

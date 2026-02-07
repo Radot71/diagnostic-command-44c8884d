@@ -1,4 +1,5 @@
 import { Situation, DiagnosticReport, WizardData } from './types';
+import { calcRunwayMonths } from './currencyUtils';
 
 export const situations: Situation[] = [
   // Distress
@@ -275,7 +276,7 @@ ${company} is facing a **${situation}** situation requiring immediate attention.
 ### Key Findings
 1. **Financial Position**: ${wizardData.runwayInputs.hasDebt ? `Debt of ${wizardData.runwayInputs.debtAmount} with ${wizardData.runwayInputs.debtMaturity} to maturity creates pressure on liquidity management.` : 'No significant debt constraints identified.'}
 
-2. **Runway Assessment**: With ${wizardData.runwayInputs.cashOnHand} cash on hand and ${wizardData.runwayInputs.monthlyBurn} monthly burn, the current runway is approximately ${Math.floor(parseFloat(wizardData.runwayInputs.cashOnHand.replace(/[^0-9.]/g, '')) / parseFloat(wizardData.runwayInputs.monthlyBurn.replace(/[^0-9.]/g, '')) || 6)} months.
+2. **Runway Assessment**: With ${wizardData.runwayInputs.cashOnHand} cash on hand and ${wizardData.runwayInputs.monthlyBurn} monthly burn, the current runway is approximately ${Math.floor(calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn))} months.
 
 3. **Signal Analysis**: ${wizardData.signalChecklist.signals.length} warning signals identified, indicating ${wizardData.signalChecklist.signals.length > 3 ? 'elevated' : 'moderate'} risk profile.
 
