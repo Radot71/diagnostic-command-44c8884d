@@ -25,20 +25,20 @@ const navItems = [
 interface EnterpriseLayoutProps {
   children: ReactNode;
   showTransparencyBanner?: boolean;
-  isDemoMode?: boolean;
+  bannerVariant?: 'default' | 'live' | 'demo' | 'reference';
 }
 
 export function EnterpriseLayout({ 
   children, 
   showTransparencyBanner = false,
-  isDemoMode = false 
+  bannerVariant = 'default',
 }: EnterpriseLayoutProps) {
   const location = useLocation();
   const currentPath = location.pathname;
   
   // Show banner on report/review pages
   const shouldShowBanner = showTransparencyBanner || 
-    currentPath === '/report' || 
+    currentPath.startsWith('/report') || 
     currentPath === '/reports' ||
     currentPath === '/briefings';
 
@@ -65,7 +65,7 @@ export function EnterpriseLayout({
             {navItems.map((item) => {
               const isActive = currentPath === item.path || 
                 (item.path === '/diagnostic' && currentPath.startsWith('/intake')) ||
-                (item.path === '/reports' && currentPath === '/report');
+                (item.path === '/reports' && currentPath.startsWith('/report'));
               
               return (
                 <Link
@@ -92,7 +92,7 @@ export function EnterpriseLayout({
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {shouldShowBanner && (
-          <TransparencyBanner variant={isDemoMode ? 'demo' : 'default'} />
+          <TransparencyBanner variant={bannerVariant} />
         )}
         {children}
       </main>

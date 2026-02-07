@@ -14,6 +14,7 @@ import {
 } from '@/lib/uploadValidation';
 import { WizardData } from '@/lib/types';
 import { generateMockReport } from '@/lib/mockData';
+import { saveReport } from '@/lib/reportPersistence';
 
 interface InlineEditField {
   path: string[];
@@ -22,7 +23,7 @@ interface InlineEditField {
 
 export default function UploadPacket() {
   const navigate = useNavigate();
-  const { setWizardData, setReport, setOutputConfig } = useDiagnostic();
+  const { setWizardData, setReport, setOutputConfig, setReportSource, setReportId } = useDiagnostic();
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileContent, setFileContent] = useState<string>('');
@@ -130,7 +131,7 @@ export default function UploadPacket() {
     setEditingField(null);
   };
 
-  const handleProcess = () => {
+  const handleProcess = async () => {
     if (!parsedData) return;
     
     const completeData: WizardData = {
@@ -163,10 +164,24 @@ export default function UploadPacket() {
     // Generate report and navigate to review
     const report = generateMockReport(completeData, 'rapid');
     setReport(report);
+    setReportSource('upload');
     setOutputConfig({ mode: 'rapid', strictMode: true, tier: 'full' });
     
-    toast.success('Decision Packet loaded');
-    navigate('/report');
+    // Persist to database
+    try {
+      const id = await saveReport({
+        report,
+        wizardData: completeData,
+        outputConfig: { mode: 'rapid', strictMode: true, tier: 'full' },
+        source: 'upload',
+      });
+      setReportId(id);
+      toast.success('Decision Packet loaded');
+      navigate(`/report/${id}`);
+    } catch {
+      toast.success('Decision Packet loaded');
+      navigate('/report');
+    }
   };
 
   return (

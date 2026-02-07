@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { calcRunwayMonths } from '@/lib/currencyUtils';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Download, Printer, FileJson, FileText, Clock, 
   ArrowLeft, AlertCircle, CheckCircle2
@@ -10,6 +10,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
+import { loadReport } from '@/lib/reportPersistence';
+import { generateReportPdf } from '@/lib/pdfExport';
 import { ReportSidebar, SeverityIndicator, ConfidenceScore, IntegrityMeter, reportSections } from '@/components/report/ReportNavigation';
 import { ReportContent } from '@/components/report/ReportContent';
 import { ValidationBadge } from '@/components/report/ValidationBadge';
@@ -39,11 +41,59 @@ type ArtifactView = 'report' | 'executive-card' | 'board-memo' | 'stakeholder-pa
 
 export default function DiagnosticReview() {
   const navigate = useNavigate();
-  const { report, wizardData, resetWizard, outputConfig } = useDiagnostic();
+  const { id: reportId } = useParams<{ id: string }>();
+  const { 
+    report, wizardData, resetWizard, outputConfig, 
+    setReport, setWizardData, setOutputConfig, 
+    reportSource, setReportSource, setReportId 
+  } = useDiagnostic();
   const [activeSection, setActiveSection] = useState('situation');
   const [viewMode, setViewMode] = useState<ViewMode>('executive');
   const [artifactView, setArtifactView] = useState<ArtifactView>('report');
+  const [isLoading, setIsLoading] = useState(!report);
   const currentTier = outputConfig.tier;
+
+  // Load from database if no report in context
+  useEffect(() => {
+    if (report) {
+      setIsLoading(false);
+      return;
+    }
+    if (!reportId) {
+      navigate('/');
+      return;
+    }
+    loadReport(reportId).then(result => {
+      if (result) {
+        setReport(result.report);
+        setWizardData(result.wizardData);
+        setOutputConfig(result.outputConfig);
+        setReportSource(result.source);
+        setReportId(reportId);
+      } else {
+        toast.error('Report not found');
+        navigate('/');
+      }
+      setIsLoading(false);
+    }).catch(() => {
+      toast.error('Failed to load report');
+      navigate('/');
+      setIsLoading(false);
+    });
+  }, [reportId]);
+
+  if (isLoading) {
+    return (
+      <EnterpriseLayout>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading report...</p>
+          </div>
+        </div>
+      </EnterpriseLayout>
+    );
+  }
 
   if (!report) {
     navigate('/');
@@ -59,12 +109,34 @@ export default function DiagnosticReview() {
   const fieldsToNext = Math.ceil((nextMilestone - confidenceScore) / 10);
 
   const handleExportPDF = () => {
-    window.print();
-    toast.success('Print dialog opened');
+    generateReportPdf({
+      title: wizardData.companyBasics.companyName || 'Diagnostic Report',
+      subtitle: `Report ID: ${report.id} — ${new Date(report.generatedAt).toLocaleDateString()}`,
+      content: Object.values(report.sections).join('\n\n---\n\n'),
+      filename: `diagnostic-${report.id}.pdf`,
+    });
+    toast.success('PDF exported');
   };
 
   const handleExportHTML = () => {
-    toast.success('HTML export started', { description: 'Your report will download shortly.' });
+    const htmlContent = `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>${wizardData.companyBasics.companyName || 'Diagnostic Report'}</title>
+<style>body{margin:0;font-family:system-ui,sans-serif;color:#0b1220}main{max-width:900px;margin:0 auto;padding:32px}h1{font-size:22px}pre{white-space:pre-wrap;font-size:13px;background:#f8f9fa;border:1px solid #e6eaf2;border-radius:8px;padding:18px}footer{margin-top:16px;font-size:11px;color:#57657d}</style>
+</head><body><main>
+<h1>${wizardData.companyBasics.companyName || 'Diagnostic Report'}</h1>
+<p style="color:#3a465a;font-size:13px">Report ID: ${report.id}</p>
+<pre>${Object.values(report.sections).join('\n\n---\n\n').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+<footer>DiagnosticOS — The selected report reflects the analytical scope surfaced at the chosen diagnostic tier.</footer>
+</main></body></html>`;
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `diagnostic-${report.id}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('HTML exported');
   };
 
   const handleExportJSON = () => {
@@ -120,8 +192,14 @@ export default function DiagnosticReview() {
     });
   };
 
+  // Determine banner variant based on report source
+  const bannerVariant = reportSource === 'claude' ? 'live' as const
+    : reportSource === 'demo' ? 'demo' as const
+    : reportSource === 'upload' || reportSource === 'reference' ? 'reference' as const
+    : 'default' as const;
+
   return (
-    <EnterpriseLayout showTransparencyBanner>
+    <EnterpriseLayout showTransparencyBanner bannerVariant={bannerVariant}>
       {/* Governance Status Banner - GO / NO-GO */}
       <GovernanceStatusBanner
         severity={wizardData.situation?.urgency || 'medium'}

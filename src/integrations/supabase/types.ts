@@ -14,7 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      diagnostic_runs: {
+        Row: {
+          company_name: string | null
+          confidence_score: number | null
+          created_at: string
+          id: string
+          output_config: Json | null
+          report_json: Json
+          source: string
+          tier_selected: string
+          wizard_data: Json | null
+        }
+        Insert: {
+          company_name?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          output_config?: Json | null
+          report_json: Json
+          source?: string
+          tier_selected?: string
+          wizard_data?: Json | null
+        }
+        Update: {
+          company_name?: string | null
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          output_config?: Json | null
+          report_json?: Json
+          source?: string
+          tier_selected?: string
+          wizard_data?: Json | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { WizardData, OutputConfig, DiagnosticReport, Situation, DiagnosticTier } from './types';
+import { WizardData, OutputConfig, DiagnosticReport, Situation, DiagnosticTier, ReportSource } from './types';
 
 interface DiagnosticContextType {
   wizardData: WizardData;
@@ -10,6 +10,10 @@ interface DiagnosticContextType {
   setReport: React.Dispatch<React.SetStateAction<DiagnosticReport | null>>;
   currentStep: number;
   setCurrentStep: React.Dispatch<React.SetStateAction<number>>;
+  reportSource: ReportSource | null;
+  setReportSource: React.Dispatch<React.SetStateAction<ReportSource | null>>;
+  reportId: string | null;
+  setReportId: React.Dispatch<React.SetStateAction<string | null>>;
   resetWizard: () => void;
   loadDemoScenario: (data: WizardData) => void;
   setTier: (tier: DiagnosticTier) => void;
@@ -50,12 +54,16 @@ export function DiagnosticProvider({ children }: { children: ReactNode }) {
   const [outputConfig, setOutputConfig] = useState<OutputConfig>(defaultOutputConfig);
   const [report, setReport] = useState<DiagnosticReport | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [reportSource, setReportSource] = useState<ReportSource | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
 
   const resetWizard = () => {
     setWizardData(defaultWizardData);
     setOutputConfig(defaultOutputConfig);
     setReport(null);
     setCurrentStep(0);
+    setReportSource(null);
+    setReportId(null);
   };
 
   const loadDemoScenario = (data: WizardData) => {
@@ -78,6 +86,10 @@ export function DiagnosticProvider({ children }: { children: ReactNode }) {
         setReport,
         currentStep,
         setCurrentStep,
+        reportSource,
+        setReportSource,
+        reportId,
+        setReportId,
         resetWizard,
         loadDemoScenario,
         setTier,
