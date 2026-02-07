@@ -19,10 +19,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
+import { TransparencyBanner } from '@/components/layout/TransparencyBanner';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { generateMockReport, situations } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
+import { generateReportPdf, generateDeckPdf } from '@/lib/pdfExport';
 import { TIER_CONFIGURATIONS, DiagnosticTier, WizardData, DiagnosticReport } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -417,17 +419,14 @@ export default function LiveRunHarness() {
             };
             result.status = 'pass';
           } else if (format === 'PDF') {
-            const html = buildExportHtml({ 
-              title: config.artifact, 
-              subtitle: data.companyBasics.companyName, 
-              body: content 
-            });
             result.downloadFn = () => {
-              if (!openPrintWindow(html, config.artifact)) {
-                toast.error('Popup blocked', { description: 'Allow popups to save PDF' });
-              } else {
-                toast.success('Print dialog opened for PDF');
-              }
+              generateReportPdf({
+                title: config.artifact,
+                subtitle: data.companyBasics.companyName || undefined,
+                content,
+                filename: `${config.artifact.toLowerCase().replace(/\s+/g, '-')}.pdf`,
+              });
+              toast.success(`${config.artifact} PDF downloaded`);
             };
             result.status = 'pass';
           } else if (format === 'JSON') {
@@ -571,6 +570,7 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
 
   return (
     <EnterpriseLayout>
+      <TransparencyBanner variant="reference" />
       <PageHeader 
         title="Live Run Harness" 
         subtitle="Internal verification and demo operator panel"

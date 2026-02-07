@@ -63,7 +63,7 @@ const exportOptions: ExportOption[] = [
     id: 'notebooklm',
     title: 'Briefing Document',
     description: 'Structured diagnostic output formatted for downstream briefing, narration, or audio/video synthesis.',
-    formats: ['Preview', 'MD', 'DOC'],
+    formats: ['Preview', 'MD'],
     type: 'notebooklm',
     requiredTier: 'full',
   },
@@ -277,9 +277,9 @@ export default function ExportDelivery() {
       return;
     }
 
-    if (format === 'TXT') {
-      downloadBlob(new Blob([getPlainText()], { type: 'text/plain;charset=utf-8' }), `${filenameBase}.txt`);
-      toast.success('TXT exported successfully');
+    if (format === 'MD') {
+      downloadBlob(new Blob([getPlainText()], { type: 'text/markdown;charset=utf-8' }), `${filenameBase}.md`);
+      toast.success('Markdown exported successfully');
       return;
     }
 
@@ -292,12 +292,33 @@ export default function ExportDelivery() {
     }
 
     if (format === 'PDF') {
-      const ok = openPrintWindow(buildHtmlForOption(), `${option.title} — ${report.id}`);
-      if (!ok) {
-        toast.error('Popup blocked', { description: 'Allow popups to print / save as PDF.' });
-        return;
+      if (option.id === 'deck') {
+        const companyName = wizardData.companyBasics.companyName || 'Target Company';
+        const urgency = wizardData.situation?.urgency || 'medium';
+        const stage = urgency === 'critical' ? 'Crisis' : urgency === 'high' ? 'Degraded' : 'Stable';
+        const daysToCritical = Math.round(calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn) * 30);
+        const slides = [
+          { title: `${companyName} - Board Deck`, body: `${stage} posture | ${daysToCritical} days to critical\nReport ID: ${report.id}\nGenerated: ${new Date(report.generatedAt).toLocaleDateString()}` },
+          { title: 'Situation', body: report.sections.executiveBrief },
+          { title: 'Financial Impact', body: report.sections.valueLedger || 'Value ledger not available.' },
+          { title: 'Scenarios', body: report.sections.scenarios },
+          { title: 'Options', body: report.sections.options },
+          { title: 'Risks', body: `Severity: ${urgency.toUpperCase()}\n\nSignals:\n${wizardData.signalChecklist.signals.map(s => '- ' + s).join('\n') || '- None identified'}` },
+          { title: '30-Day Roadmap', body: report.sections.executionPlan },
+          { title: '90-Day Roadmap', body: 'See full roadmap artifact in the workbench for narrative scaffolding.' },
+          { title: 'KPIs', body: 'KPIs are derived from existing inputs; include finance + execution leading indicators as applicable.' },
+          { title: 'Evidence Summary', body: report.sections.evidenceRegister },
+        ];
+        generateDeckPdf(slides, `${filenameBase}.pdf`);
+      } else {
+        generateReportPdf({
+          title: option.title,
+          subtitle: wizardData.companyBasics.companyName || undefined,
+          content: getPlainText(),
+          filename: `${filenameBase}.pdf`,
+        });
       }
-      toast.success('Print dialog opened', { description: 'Choose “Save as PDF” to download.' });
+      toast.success('PDF exported successfully');
       return;
     }
 
@@ -642,8 +663,8 @@ ${report.sections.evidenceRegister}
                 handleExport(fullOption, 'PDF');
               }}
             >
-              <Printer className="w-4 h-4 mr-2" />
-              Print Full Packet
+              <Download className="w-4 h-4 mr-2" />
+              Export Full Packet PDF
             </Button>
           </div>
         </div>
