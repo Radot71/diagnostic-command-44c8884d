@@ -153,7 +153,7 @@ export interface ValidationMetadata {
   fieldDiffs: FieldDiff[];
 }
 
-/** GCAS (Global Currency & Asset Sensitivity) score */
+/** GCAS v2 (Global Currency & Asset Sensitivity) score */
 export type GCASScore = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface GCASAssessment {
@@ -161,10 +161,40 @@ export interface GCASAssessment {
   revenueOutsideUS: boolean | null;
   emergingMarketExposure: boolean | null;
   weakerDollarImpact: 'help' | 'hurt' | 'neutral' | null;
-  /** Only populated when GCAS = LOW */
+  /** One-sentence GCAS explanation */
+  explanation?: string;
+  /** Risk warning (only if LOW) */
+  riskWarning?: string | null;
+  /** @deprecated v1 fields kept for backward compat */
   ebitdaRiskRange?: string;
   financingRisk?: string;
   exitMultipleRisk?: string;
+}
+
+/** ROOM 3 — Causal Impact row for a business type */
+export interface CausalImpactRow {
+  businessType: string;
+  direction: 'Tailwind' | 'Headwind' | 'Mixed';
+  marginDirection: 'Expanding' | 'Compressing' | 'Stable';
+  financingPressure: 'Low' | 'Moderate' | 'High';
+}
+
+/** Upgrade A+B — Segment-level EBITDA breakdown */
+export interface SegmentBreakdown {
+  usRevenue: string;
+  internationalRevenue: string;
+  exportImpact: string;
+  commodityCost: string;
+  netEbitdaRange: string;
+  leverageImpact: string;
+}
+
+/** Upgrade D — 6-12 month checkpoint gate */
+export interface CheckpointGate {
+  timeframe: string;
+  stayCondition: string;
+  exitCondition: string;
+  metrics: string[];
 }
 
 export interface CourseCorrection {
@@ -172,6 +202,10 @@ export interface CourseCorrection {
   why: string;
   owner: 'CFO' | 'CRO' | 'COO' | 'CEO';
   timeline: '30 days' | '60 days' | '90 days';
+  /** v2: Measurable outcome */
+  kpi?: string;
+  /** v2: % of revenue or cost base affected */
+  scope?: string;
 }
 
 export interface PortfolioRecommendation {
@@ -191,17 +225,29 @@ export interface DiagnosticReport {
     options: string;
     executionPlan: string;
     evidenceRegister: string;
-    /** Pattern & causal analysis (Steps 2-3) — markdown */
+    /** ROOM 2 — Patterns (historical precedents) */
     patternAnalysis?: string;
-    /** GCAS module narrative (Steps 4-5) — markdown */
+    /** ROOM 3 — Causal impact table (markdown) */
+    causalImpactTable?: string;
+    /** ROOM 4 — GCAS narrative */
     gcasNarrative?: string;
-    /** 90-day course correction narrative (Step 6) — markdown */
+    /** Upgrade A+B — Segment-level value math + leverage */
+    segmentValueMath?: string;
+    /** Upgrade C — 90-day course correction narrative */
     courseCorrection?: string;
+    /** Upgrade D — 6-12 month checkpoint rule */
+    checkpointRule?: string;
   };
   /** Structured GCAS assessment */
   gcas?: GCASAssessment;
-  /** Structured course corrections (when GCAS = LOW) */
+  /** Structured causal impact rows (ROOM 3) */
+  causalImpactRows?: CausalImpactRow[];
+  /** Structured segment breakdown (Upgrade A+B) */
+  segmentBreakdown?: SegmentBreakdown;
+  /** Structured course corrections with KPI/scope */
   courseCorrections?: CourseCorrection[];
+  /** Structured checkpoint gate (Upgrade D) */
+  checkpointGate?: CheckpointGate;
   /** Portfolio recommendation */
   portfolioRecommendation?: PortfolioRecommendation;
   inputSummary: string;

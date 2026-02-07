@@ -485,6 +485,12 @@ export default function DiagnosticReview() {
                       courseCorrectionNarrative={report.sections.courseCorrection}
                       portfolioRecommendation={report.portfolioRecommendation}
                       patternAnalysis={report.sections.patternAnalysis}
+                      causalImpactTable={report.sections.causalImpactTable}
+                      causalImpactRows={report.causalImpactRows}
+                      segmentValueMath={report.sections.segmentValueMath}
+                      segmentBreakdown={report.segmentBreakdown}
+                      checkpointRule={report.sections.checkpointRule}
+                      checkpointGate={report.checkpointGate}
                     />
                   ) : (
                     <ReportContent content={getSectionContent() || ''} section={activeSection} />

@@ -1,77 +1,11 @@
-import { Globe, TrendingDown, AlertTriangle, ArrowRight, CheckCircle2, XCircle, MinusCircle } from 'lucide-react';
-import { GCASAssessment, CourseCorrection, PortfolioRecommendation, GCASScore } from '@/lib/types';
+import { Globe, TrendingDown, ArrowRight, BarChart3, Target, AlertTriangle } from 'lucide-react';
+import { GCASAssessment, CourseCorrection, PortfolioRecommendation, CausalImpactRow, SegmentBreakdown, CheckpointGate } from '@/lib/types';
 import { ReportContent } from './ReportContent';
+import { GCASScoreBadge, ScreeningQuestion, CausalImpactTable } from './gcas/GCASParts';
+import { CourseCorrectionCard } from './gcas/CourseCorrectionCard';
+import { SegmentValueCard } from './gcas/SegmentValueCard';
+import { CheckpointRuleCard } from './gcas/CheckpointRuleCard';
 import { cn } from '@/lib/utils';
-
-// ---------- Score badge ----------
-
-function GCASScoreBadge({ score }: { score: GCASScore }) {
-  const config: Record<GCASScore, { label: string; className: string }> = {
-    HIGH: { label: 'HIGH', className: 'bg-success/15 text-success border-success/30' },
-    MEDIUM: { label: 'MEDIUM', className: 'bg-warning/15 text-warning border-warning/30' },
-    LOW: { label: 'LOW', className: 'bg-destructive/15 text-destructive border-destructive/30' },
-  };
-  const c = config[score] ?? config.LOW;
-  return (
-    <span className={cn('px-3 py-1 text-xs font-bold rounded-full border uppercase tracking-wider', c.className)}>
-      GCAS: {c.label}
-    </span>
-  );
-}
-
-// ---------- Screening questions ----------
-
-function ScreeningQuestion({ label, value }: { label: string; value: boolean | string | null }) {
-  const isPositive = value === true || value === 'help';
-  const isNegative = value === false || value === 'hurt';
-  const Icon = isPositive ? CheckCircle2 : isNegative ? XCircle : MinusCircle;
-  const display = value === null ? 'N/A'
-    : typeof value === 'boolean' ? (value ? 'Yes' : 'No')
-    : value.charAt(0).toUpperCase() + value.slice(1);
-
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-border last:border-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={cn('flex items-center gap-1.5 text-sm font-medium',
-        isPositive && 'text-success',
-        isNegative && 'text-destructive',
-        !isPositive && !isNegative && 'text-muted-foreground'
-      )}>
-        <Icon className="w-4 h-4" />
-        {display}
-      </span>
-    </div>
-  );
-}
-
-// ---------- Course correction card ----------
-
-function CourseCorrectionCard({ item, index }: { item: CourseCorrection; index: number }) {
-  const ownerColor: Record<string, string> = {
-    CFO: 'bg-primary/10 text-primary',
-    CRO: 'bg-accent/10 text-accent-foreground',
-    COO: 'bg-warning/10 text-warning',
-    CEO: 'bg-destructive/10 text-destructive',
-  };
-
-  return (
-    <div className="border border-border rounded-lg p-4 bg-card">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Action {index + 1}</span>
-        <div className="flex items-center gap-2">
-          <span className={cn('px-2 py-0.5 text-xs font-medium rounded', ownerColor[item.owner] || 'bg-muted text-muted-foreground')}>
-            {item.owner}
-          </span>
-          <span className="text-xs text-muted-foreground">{item.timeline}</span>
-        </div>
-      </div>
-      <p className="text-sm font-medium text-foreground mb-1">{item.what}</p>
-      <p className="text-xs text-muted-foreground">{item.why}</p>
-    </div>
-  );
-}
-
-// ---------- Main GCAS Module ----------
 
 interface GCASModuleProps {
   gcas?: GCASAssessment;
@@ -80,6 +14,13 @@ interface GCASModuleProps {
   courseCorrectionNarrative?: string;
   portfolioRecommendation?: PortfolioRecommendation;
   patternAnalysis?: string;
+  /** v2 fields */
+  causalImpactTable?: string;
+  causalImpactRows?: CausalImpactRow[];
+  segmentValueMath?: string;
+  segmentBreakdown?: SegmentBreakdown;
+  checkpointRule?: string;
+  checkpointGate?: CheckpointGate;
   className?: string;
 }
 
@@ -90,6 +31,12 @@ export function GCASModule({
   courseCorrectionNarrative,
   portfolioRecommendation,
   patternAnalysis,
+  causalImpactTable,
+  causalImpactRows,
+  segmentValueMath,
+  segmentBreakdown,
+  checkpointRule,
+  checkpointGate,
   className,
 }: GCASModuleProps) {
   if (!gcas && !narrative && !patternAnalysis) {
@@ -103,12 +50,12 @@ export function GCASModule({
 
   return (
     <div className={cn('space-y-6', className)}>
-      {/* Pattern & Causal Analysis (Steps 2-3) */}
+      {/* ROOM 2 — Pattern Analysis */}
       {patternAnalysis && (
         <section>
           <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
             <TrendingDown className="w-5 h-5" />
-            Pattern & Causal Analysis
+            Room 2 — Patterns (Historical Precedents)
           </h2>
           <div className="border border-border rounded-lg p-4 bg-card">
             <ReportContent content={patternAnalysis} section="pattern" />
@@ -116,50 +63,57 @@ export function GCASModule({
         </section>
       )}
 
-      {/* GCAS Score (Step 4) */}
+      {/* ROOM 3 — Causal Impact Table */}
+      {(causalImpactRows && causalImpactRows.length > 0) && (
+        <section>
+          <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Room 3 — Causal Impact
+          </h2>
+          <div className="border border-border rounded-lg p-4 bg-card">
+            <CausalImpactTable rows={causalImpactRows} />
+          </div>
+        </section>
+      )}
+      {causalImpactTable && !causalImpactRows?.length && (
+        <section>
+          <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Room 3 — Causal Impact
+          </h2>
+          <div className="border border-border rounded-lg p-4 bg-card">
+            <ReportContent content={causalImpactTable} section="causal" />
+          </div>
+        </section>
+      )}
+
+      {/* ROOM 4 — GCAS Score */}
       {gcas && (
         <section>
           <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
             <Globe className="w-5 h-5" />
-            GCAS — Global Currency & Asset Sensitivity
+            Room 4 — GCAS Score
           </h2>
           <div className="border border-border rounded-lg p-4 bg-card">
             <div className="flex items-center justify-between mb-4">
               <GCASScoreBadge score={gcas.score} />
             </div>
             <div className="mb-4">
-              <ScreeningQuestion label="Meaningful revenue outside the U.S.?" value={gcas.revenueOutsideUS} />
-              <ScreeningQuestion label="Exposure to emerging markets?" value={gcas.emergingMarketExposure} />
-              <ScreeningQuestion label="Impact of weaker dollar?" value={gcas.weakerDollarImpact} />
+              <ScreeningQuestion label="Q1: Meaningful revenue outside the U.S.?" value={gcas.revenueOutsideUS} />
+              <ScreeningQuestion label="Q2: Exposed to emerging markets?" value={gcas.emergingMarketExposure} />
+              <ScreeningQuestion label="Q3: Would a weaker USD help?" value={gcas.weakerDollarImpact} />
             </div>
 
-            {/* Value Translation (Step 5) — only when LOW */}
-            {gcas.score === 'LOW' && (gcas.ebitdaRiskRange || gcas.financingRisk || gcas.exitMultipleRisk) && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-destructive" />
-                  Value Translation — Risk Estimates
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {gcas.ebitdaRiskRange && (
-                    <div className="bg-destructive/5 rounded-lg p-3 border border-destructive/10">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-destructive">EBITDA Risk</span>
-                      <p className="text-sm font-medium text-foreground mt-1">{gcas.ebitdaRiskRange}</p>
-                    </div>
-                  )}
-                  {gcas.financingRisk && (
-                    <div className="bg-destructive/5 rounded-lg p-3 border border-destructive/10">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-destructive">Financing Risk</span>
-                      <p className="text-sm font-medium text-foreground mt-1">{gcas.financingRisk}</p>
-                    </div>
-                  )}
-                  {gcas.exitMultipleRisk && (
-                    <div className="bg-destructive/5 rounded-lg p-3 border border-destructive/10">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-destructive">Exit Multiple Risk</span>
-                      <p className="text-sm font-medium text-foreground mt-1">{gcas.exitMultipleRisk}</p>
-                    </div>
-                  )}
-                </div>
+            {/* Explanation */}
+            {gcas.explanation && (
+              <p className="text-sm text-foreground font-medium mb-2">{gcas.explanation}</p>
+            )}
+
+            {/* Risk Warning (LOW only) */}
+            {gcas.score === 'LOW' && gcas.riskWarning && (
+              <div className="mt-3 bg-destructive/5 rounded-lg p-3 border border-destructive/20 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-destructive font-medium">{gcas.riskWarning}</p>
               </div>
             )}
           </div>
@@ -173,7 +127,26 @@ export function GCASModule({
         </div>
       )}
 
-      {/* 90-Day Course Correction (Step 6) */}
+      {/* Upgrade A+B — Segment-Level Value Math */}
+      {(segmentBreakdown || segmentValueMath) && (
+        <section>
+          <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Segment-Level Value Math
+          </h2>
+          {segmentBreakdown ? (
+            <div className="border border-border rounded-lg p-4 bg-card">
+              <SegmentValueCard segment={segmentBreakdown} />
+            </div>
+          ) : segmentValueMath ? (
+            <div className="border border-border rounded-lg p-4 bg-card">
+              <ReportContent content={segmentValueMath} section="segment" />
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {/* Upgrade C — 90-Day Course Correction */}
       {(courseCorrections && courseCorrections.length > 0) && (
         <section>
           <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
@@ -199,7 +172,24 @@ export function GCASModule({
         </section>
       )}
 
-      {/* Portfolio Recommendation (Step 7) */}
+      {/* Upgrade D — Checkpoint Rule */}
+      {(checkpointGate || checkpointRule) && (
+        <section>
+          <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
+            <Target className="w-5 h-5" />
+            6–12 Month Decision Gate
+          </h2>
+          {checkpointGate ? (
+            <CheckpointRuleCard gate={checkpointGate} />
+          ) : checkpointRule ? (
+            <div className="border border-border rounded-lg p-4 bg-card">
+              <ReportContent content={checkpointRule} section="checkpoint" />
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {/* Portfolio Recommendation */}
       {portfolioRecommendation && (
         <section>
           <div className="border-2 border-primary/30 rounded-lg p-5 bg-primary/5">

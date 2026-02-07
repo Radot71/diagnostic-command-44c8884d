@@ -48,7 +48,7 @@ function sanitizeApiKey(raw: string): string {
 function buildUserPrompt(wizardData: WizardData, tier: string): string {
   return `Analyze the following company diagnostic data and produce the diagnostic report at the ${tier.toUpperCase()} tier level.
 
-Follow the 7-step layered framework exactly: Evidence Layer → Pattern Layer → Causal Layer → GCAS Module → Value Translation → 90-Day Course Correction → Final Output.
+Follow the strict 4-room flow exactly: ROOM 1 (Evidence) → ROOM 2 (Patterns) → ROOM 3 (Causal Impact) → ROOM 4 (GCAS). Then apply all Mandatory Upgrades (A-D).
 
 **Company Information:**
 - Company Name: ${wizardData.companyBasics.companyName || 'Not specified'}
