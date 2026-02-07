@@ -1,4 +1,4 @@
-import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier } from './types';
+import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier, GCASAssessment, CausalImpactRow, SegmentBreakdown, CourseCorrection, CheckpointGate, PortfolioRecommendation } from './types';
 
 interface AnalysisResponse {
   success: boolean;
@@ -10,27 +10,17 @@ interface AnalysisResponse {
     executionPlan: string;
     evidenceRegister: string;
     patternAnalysis?: string;
+    causalImpactTable?: string;
     gcasNarrative?: string;
+    segmentValueMath?: string;
     courseCorrection?: string;
-    gcasAssessment?: {
-      score: 'HIGH' | 'MEDIUM' | 'LOW';
-      revenueOutsideUS: boolean | null;
-      emergingMarketExposure: boolean | null;
-      weakerDollarImpact: 'help' | 'hurt' | 'neutral' | null;
-      ebitdaRiskRange?: string;
-      financingRisk?: string;
-      exitMultipleRisk?: string;
-    };
-    courseCorrections?: Array<{
-      what: string;
-      why: string;
-      owner: 'CFO' | 'CRO' | 'COO' | 'CEO';
-      timeline: '30 days' | '60 days' | '90 days';
-    }>;
-    portfolioRecommendation?: {
-      action: 'Reposition' | 'Accelerate exit' | 'Restructure';
-      rationale: string;
-    };
+    checkpointRule?: string;
+    gcasAssessment?: GCASAssessment;
+    causalImpactRows?: CausalImpactRow[];
+    segmentBreakdown?: SegmentBreakdown;
+    courseCorrections?: CourseCorrection[];
+    checkpointGate?: CheckpointGate;
+    portfolioRecommendation?: PortfolioRecommendation;
     integrity: {
       completeness: number;
       evidenceQuality: number;
@@ -90,11 +80,17 @@ export async function generateAIReport(
       executionPlan: analysis.executionPlan,
       evidenceRegister: analysis.evidenceRegister,
       patternAnalysis: analysis.patternAnalysis,
+      causalImpactTable: analysis.causalImpactTable,
       gcasNarrative: analysis.gcasNarrative,
+      segmentValueMath: analysis.segmentValueMath,
       courseCorrection: analysis.courseCorrection,
+      checkpointRule: analysis.checkpointRule,
     },
     gcas: analysis.gcasAssessment,
+    causalImpactRows: analysis.causalImpactRows,
+    segmentBreakdown: analysis.segmentBreakdown,
     courseCorrections: analysis.courseCorrections,
+    checkpointGate: analysis.checkpointGate,
     portfolioRecommendation: analysis.portfolioRecommendation,
     inputSummary: generateInputSummary(wizardData),
     rawJson: wizardData,
