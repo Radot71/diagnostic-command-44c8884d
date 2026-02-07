@@ -13,6 +13,7 @@ import { situations, signalOptions, generateMockReport } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
 import { TierSelection } from '@/components/intake/TierSelection';
+import { GovernancePillars } from '@/components/report/GovernancePillars';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -120,10 +121,13 @@ export default function DiagnosticIntake() {
     switch (currentStep) {
       case 1:
         return (
-          <TierSelection
-            selectedTier={outputConfig.tier}
-            onSelectTier={(tier) => setOutputConfig(prev => ({ ...prev, tier }))}
-          />
+          <div className="space-y-6">
+            <TierSelection
+              selectedTier={outputConfig.tier}
+              onSelectTier={(tier) => setOutputConfig(prev => ({ ...prev, tier }))}
+            />
+            <GovernancePillars />
+          </div>
         );
 
       case 2:
