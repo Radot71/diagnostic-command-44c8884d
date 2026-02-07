@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { situations, signalOptions, generateMockReport } from '@/lib/mockData';
+import { calcRunwayMonths } from '@/lib/currencyUtils';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
 import { TierSelection } from '@/components/intake/TierSelection';
@@ -234,14 +235,9 @@ export default function DiagnosticIntake() {
                   <p className="text-sm text-muted-foreground">
                     <span className="font-medium text-foreground">Computed Runway: </span>
                     {(() => {
-                      const cash = parseFloat(wizardData.runwayInputs.cashOnHand.replace(/[^0-9.-]/g, ''));
-                      const burn = parseFloat(wizardData.runwayInputs.monthlyBurn.replace(/[^0-9.-]/g, ''));
-                      if (burn > 0 && cash > 0) {
-                        return `${(cash / burn).toFixed(1)} months`;
-                      }
-                      if (burn <= 0) {
-                        return 'Cash generating (no runway constraint)';
-                      }
+                      const runway = calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn);
+                      if (runway >= 99) return 'Cash generating (no runway constraint)';
+                      if (runway > 0) return `${runway.toFixed(1)} months`;
                       return 'Unable to calculate';
                     })()}
                   </p>
