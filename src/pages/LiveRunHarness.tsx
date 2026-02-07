@@ -673,16 +673,26 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium text-foreground">{pack.name}</h4>
                           {pack.id === 'liquidity-wall' && (
-                            <span className="px-1.5 py-0.5 bg-warning/10 text-warning text-xs font-medium rounded">
-                              Reference Case
-                            </span>
+                            <>
+                              <span className="px-1.5 py-0.5 bg-accent/10 text-accent text-xs font-semibold rounded uppercase tracking-wide">
+                                Reference Stress Test Case
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-success/10 text-success text-xs font-semibold rounded">
+                                Governance Verified
+                              </span>
+                            </>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">{pack.description}</p>
                         {pack.id === 'liquidity-wall' && (
-                          <p className="text-xs text-muted-foreground mt-2 font-mono">
-                            Demo: Cascade Manufacturing • $3.2M cash • $1.4M burn • 2.3mo runway • $42M debt due 60d
-                          </p>
+                          <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono text-muted-foreground">
+                            <span>Cash: $3.2M</span>
+                            <span>Burn: $1.4M/mo</span>
+                            <span>Runway: 2.3 months</span>
+                            <span>Debt maturity: 60 days</span>
+                            <span>Severity: CRITICAL</span>
+                            <span>Confidence: 65%</span>
+                          </div>
                         )}
                       </div>
                       {selectedPack === pack.id && (

@@ -22,9 +22,13 @@ import { ExecutiveCard } from '@/components/report/ExecutiveCard';
 import { BoardMemo } from '@/components/report/BoardMemo';
 import { StakeholderPack, ExecutionRoadmap } from '@/components/report/StakeholderPack';
 import { GovernanceHeader } from '@/components/report/GovernanceHeader';
+import { GovernanceStatusBanner } from '@/components/report/GovernanceStatusBanner';
 import { UrgencyBanner } from '@/components/report/UrgencyBanner';
 import { EvidenceGuardrails } from '@/components/report/EvidenceGuardrails';
+import { EvidenceGate } from '@/components/report/EvidenceGate';
 import { OtherSideReasoning } from '@/components/report/OtherSideReasoning';
+import { FinalVerdict } from '@/components/report/FinalVerdict';
+import { ConfidenceDisplay } from '@/components/report/ConfidenceDisplay';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -121,6 +125,13 @@ export default function DiagnosticReview() {
 
   return (
     <EnterpriseLayout showTransparencyBanner>
+      {/* Governance Status Banner - GO / NO-GO */}
+      <GovernanceStatusBanner
+        severity={wizardData.situation?.urgency || 'medium'}
+        completeness={report.integrity.completeness}
+        confidence={confidenceScore}
+      />
+
       {/* Urgency Banner - Sticky for CRITICAL severity */}
       <UrgencyBanner
         severity={wizardData.situation?.urgency || 'medium'}
@@ -346,6 +357,14 @@ export default function DiagnosticReview() {
                 <>
                   {/* Result Headline - Every artifact */}
                   <ResultHeadline className="mb-4" />
+
+                  {/* Evidence Gate - for low completeness */}
+                  <EvidenceGate
+                    completeness={report.integrity.completeness}
+                    confidence={confidenceScore}
+                    missingData={report.integrity.missingData}
+                    className="mb-4"
+                  />
                   
                   {/* Decision Frame - Top of every artifact view */}
                   {activeSection === 'situation' && (
@@ -384,6 +403,18 @@ export default function DiagnosticReview() {
                   </div>
                   
                   <ReportContent content={getSectionContent()} section={activeSection} />
+
+                  {/* Final Governance Verdict — end of report */}
+                  {activeSection === 'evidence' && (
+                    <FinalVerdict
+                      severity={wizardData.situation?.urgency || 'medium'}
+                      confidence={confidenceScore}
+                      completeness={report.integrity.completeness}
+                      hasDebt={wizardData.runwayInputs.hasDebt}
+                      debtMaturity={wizardData.runwayInputs.debtMaturity}
+                      className="mt-6"
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -422,6 +453,16 @@ export default function DiagnosticReview() {
                 ? 'Review debt position and covenant status to assess near-term constraints.'
                 : 'Assess cash position and runway to establish baseline for scenario planning.'
             }
+            className="mb-4"
+          />
+
+          {/* Final Verdict in sidebar */}
+          <FinalVerdict
+            severity={wizardData.situation?.urgency || 'medium'}
+            confidence={confidenceScore}
+            completeness={report.integrity.completeness}
+            hasDebt={wizardData.runwayInputs.hasDebt}
+            debtMaturity={wizardData.runwayInputs.debtMaturity}
             className="mb-4"
           />
 
@@ -464,35 +505,13 @@ export default function DiagnosticReview() {
           {/* Validation Pass Disclosure */}
           <ValidationPassDisclosure validation={report.validation} className="mb-4" />
 
-          {/* Confidence Summary */}
-          <div className="mb-6 p-3 bg-muted/30 rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-foreground">Overall Confidence</span>
-              <span className={cn(
-                "text-lg font-bold",
-                confidenceScore >= 70 ? "text-success" : confidenceScore >= 50 ? "text-warning" : "text-destructive"
-              )}>
-                {confidenceScore}%
-              </span>
-            </div>
-            {confidenceScore < 70 && (
-              <div className="flex items-start gap-2 text-xs text-warning">
-                <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                <span>Magnitude is directionally material but constrained by missing inputs.</span>
-              </div>
-            )}
-            {confidenceScore >= 70 && (
-              <div className="flex items-center gap-2 text-xs text-success">
-                <CheckCircle2 className="w-3 h-3" />
-                <span>Sufficient input data for reliable assessment</span>
-              </div>
-            )}
-            {confidenceScore < 90 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Add {fieldsToNext} more field{fieldsToNext > 1 ? 's' : ''} to reach {nextMilestone}%
-              </p>
-            )}
-          </div>
+          {/* Enhanced Confidence Display */}
+          <ConfidenceDisplay
+            confidence={confidenceScore}
+            missingDataCount={report.integrity.missingData.length}
+            evidenceQuality={report.integrity.evidenceQuality}
+            className="mb-6"
+          />
 
           {/* Integrity Summary */}
           <div className="mb-6">
