@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { WizardData, DiagnosticReport } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { parseCurrency, formatCurrency, calcRunwayMonths } from '@/lib/currencyUtils';
 import { EvidenceGuardrails } from './EvidenceGuardrails';
 
 interface BoardMemoProps {
@@ -30,10 +31,10 @@ export function BoardMemo({ report, wizardData, onUpgrade, className }: BoardMem
     : 'Stable';
   
   // Calculate days to critical
-  const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
-  const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
-  const runwayMonths = burn > 0 ? cash / burn : 99;
+  const burnRaw = parseCurrency(wizardData.runwayInputs.monthlyBurn);
+  const runwayMonths = calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn);
   const daysToCritical = Math.round(runwayMonths * 30);
+  const annualizedBurn = burnRaw * 12;
   
   // Low confidence indicator
   const lowConfidence = confidenceScore < 60;
@@ -162,7 +163,7 @@ export function BoardMemo({ report, wizardData, onUpgrade, className }: BoardMem
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Cost of Inaction</p>
-              <p className="text-2xl font-bold text-destructive">${burn > 0 ? formatValue(Math.round(burn * 12).toLocaleString()) : 'TBD'}</p>
+              <p className="text-2xl font-bold text-destructive">{burnRaw > 0 ? formatValue(formatCurrency(annualizedBurn)) : 'TBD'}</p>
               <p className="text-xs text-muted-foreground">Annualized at current burn</p>
             </div>
             <div className="p-3 rounded-lg bg-success/5 border border-success/20">

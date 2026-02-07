@@ -4,6 +4,7 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { WizardData, DiagnosticReport } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { parseCurrency, formatCurrency, calcRunwayMonths } from '@/lib/currencyUtils';
 import { EvidenceGuardrails } from './EvidenceGuardrails';
 
 interface ExecutiveCardProps {
@@ -28,10 +29,10 @@ export function ExecutiveCard({ report, wizardData, onUpgrade, className }: Exec
     : 'Stable';
   
   // Calculate days to critical (from runway)
-  const cash = parseFloat(wizardData.runwayInputs.cashOnHand?.replace(/[^0-9.-]/g, '') || '0');
-  const burn = parseFloat(wizardData.runwayInputs.monthlyBurn?.replace(/[^0-9.-]/g, '') || '1');
-  const runwayMonths = burn > 0 ? cash / burn : 99;
+  const burnRaw = parseCurrency(wizardData.runwayInputs.monthlyBurn);
+  const runwayMonths = calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn);
   const daysToCritical = Math.round(runwayMonths * 30);
+  const annualizedBurn = burnRaw * 12;
   
   // Low confidence indicator
   const lowConfidence = confidenceScore < 60;
@@ -126,7 +127,7 @@ export function ExecutiveCard({ report, wizardData, onUpgrade, className }: Exec
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-accent mt-0.5">•</span>
-                <span>Cost of inaction: <span className="font-medium text-foreground">${burn > 0 ? formatValue(Math.round(burn * 12).toLocaleString()) : 'TBD'}/year</span> (annualized burn)</span>
+                <span>Cost of inaction: <span className="font-medium text-foreground">{burnRaw > 0 ? `${formatValue(formatCurrency(annualizedBurn))}/year` : 'TBD'}</span> (annualized burn)</span>
               </li>
             </ul>
           </div>
