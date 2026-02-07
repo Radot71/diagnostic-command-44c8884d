@@ -7,27 +7,12 @@ import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/E
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { demoScenarios, generateMockReport } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
-import { ScenarioComparison, ScenarioSelectBadge } from '@/components/report/ScenarioComparison';
+import { ScenarioComparison } from '@/components/report/ScenarioComparison';
+import { ScenarioCard, type ScenarioCardData } from '@/components/scenarios/ScenarioCard';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
-interface DemoScenario {
-  id: string;
-  title: string;
-  situation: string;
-  severity: 'RED' | 'ORANGE' | 'YELLOW';
-  description: string;
-  icon: React.ElementType;
-  dataIndex: number;
-  metrics?: {
-    cashPosition?: string;
-    runway?: string;
-    riskLevel?: string;
-    urgency?: string;
-  };
-}
-
-const scenarioLibrary: DemoScenario[] = [
+const scenarioLibrary: ScenarioCardData[] = [
   {
     id: 'liquidity-crisis',
     title: 'Liquidity Crisis',
@@ -42,6 +27,11 @@ const scenarioLibrary: DemoScenario[] = [
       riskLevel: 'Critical',
       urgency: 'Immediate',
     },
+    governance: {
+      posture: 'NO-GO',
+      completeness: 45,
+      confidence: 52,
+    },
   },
   {
     id: 'covenant-breach',
@@ -50,12 +40,17 @@ const scenarioLibrary: DemoScenario[] = [
     severity: 'RED',
     description: 'Manufacturing company approaching borrowing base limit',
     icon: DollarSign,
-    dataIndex: 0,
+    dataIndex: 3,
     metrics: {
-      cashPosition: '$8M',
-      runway: '4 months',
-      riskLevel: 'High',
-      urgency: '30 days',
+      cashPosition: '$3.2M',
+      runway: '2.3 months',
+      riskLevel: 'Critical',
+      urgency: '60 days',
+    },
+    governance: {
+      posture: 'NO-GO',
+      completeness: 38,
+      confidence: 48,
     },
   },
   {
@@ -65,12 +60,17 @@ const scenarioLibrary: DemoScenario[] = [
     severity: 'ORANGE',
     description: 'Primary customer representing 35% of revenue threatening dual-source',
     icon: Users,
-    dataIndex: 0,
+    dataIndex: 4,
     metrics: {
       cashPosition: '$12M',
       runway: '8 months',
       riskLevel: 'Medium-High',
       urgency: '60-90 days',
+    },
+    governance: {
+      posture: 'CONDITIONAL',
+      completeness: 58,
+      confidence: 62,
     },
   },
   {
@@ -87,6 +87,11 @@ const scenarioLibrary: DemoScenario[] = [
       riskLevel: 'Medium',
       urgency: 'Proactive',
     },
+    governance: {
+      posture: 'CONDITIONAL',
+      completeness: 65,
+      confidence: 68,
+    },
   },
   {
     id: 'growth-profitability',
@@ -95,12 +100,17 @@ const scenarioLibrary: DemoScenario[] = [
     severity: 'YELLOW',
     description: 'Software company balancing growth investment against path to profitability',
     icon: BarChart3,
-    dataIndex: 1,
+    dataIndex: 5,
     metrics: {
       cashPosition: '$25M',
       runway: '20 months',
       riskLevel: 'Moderate',
       urgency: 'Strategic',
+    },
+    governance: {
+      posture: 'GO',
+      completeness: 78,
+      confidence: 74,
     },
   },
   {
@@ -117,22 +127,13 @@ const scenarioLibrary: DemoScenario[] = [
       riskLevel: 'Moderate',
       urgency: 'Strategic',
     },
+    governance: {
+      posture: 'GO',
+      completeness: 82,
+      confidence: 76,
+    },
   },
 ];
-
-function SeverityBadge({ severity }: { severity: 'RED' | 'ORANGE' | 'YELLOW' }) {
-  const classes = {
-    RED: 'severity-red',
-    ORANGE: 'severity-orange',
-    YELLOW: 'severity-yellow',
-  };
-
-  return (
-    <span className={cn('severity-badge', classes[severity])}>
-      {severity}
-    </span>
-  );
-}
 
 export default function DemoScenarioLibrary() {
   const navigate = useNavigate();
@@ -141,13 +142,12 @@ export default function DemoScenarioLibrary() {
   const [comparisonMode, setComparisonMode] = useState(false);
   const [loadingScenario, setLoadingScenario] = useState<string | null>(null);
 
-  const handleOpenDiagnostic = async (scenario: DemoScenario) => {
+  const handleOpenDiagnostic = async (scenario: ScenarioCardData) => {
     setLoadingScenario(scenario.id);
     try {
       const demoData = demoScenarios[scenario.dataIndex];
       loadDemoScenario(demoData.data);
       
-      // Generate base report then run validation
       const baseReport = generateMockReport(demoData.data, 'rapid');
       const validatedReport = await runValidation(baseReport);
       setReport(validatedReport);
@@ -160,21 +160,15 @@ export default function DemoScenarioLibrary() {
 
   const toggleScenarioSelection = (id: string) => {
     setSelectedForComparison(prev => {
-      if (prev.includes(id)) {
-        return prev.filter(s => s !== id);
-      }
-      if (prev.length >= 3) {
-        return prev; // Max 3 scenarios for comparison
-      }
+      if (prev.includes(id)) return prev.filter(s => s !== id);
+      if (prev.length >= 3) return prev;
       return [...prev, id];
     });
   };
 
   const handleComparisonSelect = (id: string) => {
     const scenario = scenarioLibrary.find(s => s.id === id);
-    if (scenario) {
-      handleOpenDiagnostic(scenario);
-    }
+    if (scenario) handleOpenDiagnostic(scenario);
   };
 
   return (
@@ -191,9 +185,7 @@ export default function DemoScenarioLibrary() {
                   size="sm"
                   onClick={() => {
                     setComparisonMode(!comparisonMode);
-                    if (!comparisonMode) {
-                      setSelectedForComparison([]);
-                    }
+                    if (!comparisonMode) setSelectedForComparison([]);
                   }}
                 >
                   <GitCompare className="w-4 h-4 mr-2" />
@@ -211,7 +203,7 @@ export default function DemoScenarioLibrary() {
         <div className="max-w-5xl mx-auto">
           <p className="text-muted-foreground mb-6">
             Select a scenario to view a complete diagnostic analysis. Each scenario includes full company context, 
-            financial data, and pre-generated decision packet.
+            financial data, and pre-generated decision packet. Governance posture indicates the current GO/NO-GO assessment.
           </p>
 
           {comparisonMode && (
@@ -236,74 +228,19 @@ export default function DemoScenarioLibrary() {
           )}
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {scenarioLibrary.map((scenario, index) => {
-              const Icon = scenario.icon;
-              const isSelected = selectedForComparison.includes(scenario.id);
-              
-              return (
-                <motion.div
-                  key={scenario.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                  className={cn(
-                    "enterprise-card p-5 flex flex-col transition-all",
-                    comparisonMode && isSelected && "ring-2 ring-accent",
-                    comparisonMode && "hover:ring-2 hover:ring-accent/50"
-                  )}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-foreground" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {comparisonMode && (
-                        <ScenarioSelectBadge
-                          selected={isSelected}
-                          onToggle={() => toggleScenarioSelection(scenario.id)}
-                          disabled={!isSelected && selectedForComparison.length >= 3}
-                        />
-                      )}
-                      <SeverityBadge severity={scenario.severity} />
-                    </div>
-                  </div>
-
-                  <h3 className="font-semibold text-foreground mb-1">
-                    {scenario.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {scenario.situation}
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-4 flex-1">
-                    {scenario.description}
-                  </p>
-
-                  {/* Quick metrics */}
-                  {scenario.metrics && (
-                    <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-muted/30 rounded">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Cash</p>
-                        <p className="text-xs font-medium text-foreground">{scenario.metrics.cashPosition}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Runway</p>
-                        <p className="text-xs font-medium text-foreground">{scenario.metrics.runway}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => handleOpenDiagnostic(scenario)}
-                    disabled={loadingScenario !== null}
-                  >
-                    {loadingScenario === scenario.id ? 'Loading...' : 'Open Diagnostic'}
-                  </Button>
-                </motion.div>
-              );
-            })}
+            {scenarioLibrary.map((scenario, index) => (
+              <ScenarioCard
+                key={scenario.id}
+                scenario={scenario}
+                index={index}
+                comparisonMode={comparisonMode}
+                isSelected={selectedForComparison.includes(scenario.id)}
+                selectionDisabled={!selectedForComparison.includes(scenario.id) && selectedForComparison.length >= 3}
+                isLoading={loadingScenario === scenario.id}
+                onToggleSelection={() => toggleScenarioSelection(scenario.id)}
+                onOpenDiagnostic={() => handleOpenDiagnostic(scenario)}
+              />
+            ))}
           </div>
         </div>
       </PageContent>

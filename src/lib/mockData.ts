@@ -173,8 +173,79 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
       },
     },
   },
+  {
+    name: 'Covenant Breach Risk',
+    data: {
+      situation: situations.find(s => s.id === 'covenant-breach')!,
+      companyBasics: {
+        companyName: 'Cascade Manufacturing Corp.',
+        industry: 'Industrial Distribution',
+        revenue: '$110M',
+        employees: '280',
+        founded: '1994',
+      },
+      runwayInputs: {
+        cashOnHand: '$3.2M',
+        monthlyBurn: '$1.4M',
+        hasDebt: true,
+        debtAmount: '$42M',
+        debtMaturity: '60 days',
+      },
+      signalChecklist: {
+        signals: ['Revenue declining YoY', 'Supplier payment extensions requested', 'Working capital squeeze', 'Delayed financial reporting', 'Key customer concentration >30%'],
+        notes: 'Borrowing base limit imminent. Senior secured lender has requested weekly cash reporting. Two key suppliers moved to COD terms.',
+      },
+    },
+  },
+  {
+    name: 'Customer Concentration Collapse',
+    data: {
+      situation: situations.find(s => s.id === 'turnaround-assessment')!,
+      companyBasics: {
+        companyName: 'Apex Industrial Supply',
+        industry: 'B2B Distribution',
+        revenue: '$95M',
+        employees: '210',
+        founded: '2003',
+      },
+      runwayInputs: {
+        cashOnHand: '$12M',
+        monthlyBurn: '$1.5M',
+        hasDebt: true,
+        debtAmount: '$18M',
+        debtMaturity: '14 months',
+      },
+      signalChecklist: {
+        signals: ['Key customer concentration >30%', 'Revenue declining YoY', 'Market share erosion'],
+        notes: 'Primary customer (35% of revenue) threatening dual-source. Competitor offering 12% discount to take share. Pipeline diversification behind plan.',
+      },
+    },
+  },
+  {
+    name: 'Growth vs Profitability',
+    data: {
+      situation: situations.find(s => s.id === 'exit-preparation')!,
+      companyBasics: {
+        companyName: 'Velocity SaaS Inc.',
+        industry: 'Enterprise Software',
+        revenue: '$55M ARR',
+        employees: '240',
+        founded: '2017',
+      },
+      runwayInputs: {
+        cashOnHand: '$25M',
+        monthlyBurn: '$1.25M',
+        hasDebt: false,
+        debtAmount: '',
+        debtMaturity: '',
+      },
+      signalChecklist: {
+        signals: ['Market share erosion', 'Management turnover in last 12 months'],
+        notes: 'Board split on growth investment vs. path to profitability. Series C investors expecting exit within 18 months. Burn rate stable but CAC increasing.',
+      },
+    },
+  },
 ];
-
 export const generateMockReport = (wizardData: WizardData, outputMode: 'snapshot' | 'rapid' | 'full'): DiagnosticReport => {
   const company = wizardData.companyBasics.companyName || 'Target Company';
   const situation = wizardData.situation?.title || 'General Assessment';
