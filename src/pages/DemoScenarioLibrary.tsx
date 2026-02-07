@@ -7,6 +7,7 @@ import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/E
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { demoScenarios, generateMockReport } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
+import { saveReport } from '@/lib/reportPersistence';
 import { ScenarioComparison } from '@/components/report/ScenarioComparison';
 import { ScenarioCard, type ScenarioCardData } from '@/components/scenarios/ScenarioCard';
 import { cn } from '@/lib/utils';
@@ -137,7 +138,7 @@ const scenarioLibrary: ScenarioCardData[] = [
 
 export default function DemoScenarioLibrary() {
   const navigate = useNavigate();
-  const { loadDemoScenario, setReport, setOutputConfig } = useDiagnostic();
+  const { loadDemoScenario, setReport, setOutputConfig, setReportSource, setReportId } = useDiagnostic();
   const [selectedForComparison, setSelectedForComparison] = useState<string[]>([]);
   const [comparisonMode, setComparisonMode] = useState(false);
   const [loadingScenario, setLoadingScenario] = useState<string | null>(null);
@@ -151,8 +152,22 @@ export default function DemoScenarioLibrary() {
       const baseReport = generateMockReport(demoData.data, 'rapid');
       const validatedReport = await runValidation(baseReport);
       setReport(validatedReport);
+      setReportSource('demo');
       setOutputConfig({ mode: 'rapid', strictMode: true, tier: 'full' });
-      navigate('/report');
+
+      // Persist demo run to database
+      try {
+        const id = await saveReport({
+          report: validatedReport,
+          wizardData: demoData.data,
+          outputConfig: { mode: 'rapid', strictMode: true, tier: 'full' },
+          source: 'demo',
+        });
+        setReportId(id);
+        navigate(`/report/${id}`);
+      } catch {
+        navigate('/report');
+      }
     } finally {
       setLoadingScenario(null);
     }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { calcRunwayMonths } from '@/lib/currencyUtils';
 import { useNavigate } from 'react-router-dom';
 import { Download, FileText, Printer, Upload, Settings, Lock, Info } from 'lucide-react';
+import { generateReportPdf, generateDeckPdf } from '@/lib/pdfExport';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -62,7 +63,7 @@ const exportOptions: ExportOption[] = [
     id: 'notebooklm',
     title: 'Briefing Document',
     description: 'Structured diagnostic output formatted for downstream briefing, narration, or audio/video synthesis.',
-    formats: ['Preview', 'TXT', 'DOC'],
+    formats: ['Preview', 'MD', 'DOC'],
     type: 'notebooklm',
     requiredTier: 'full',
   },

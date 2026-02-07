@@ -171,3 +171,6 @@ export interface DiagnosticReport {
   /** Optional validation metadata from ValidationRunner - safe to ignore */
   validation?: ValidationMetadata;
 }
+
+/** Source of the diagnostic report */
+export type ReportSource = 'claude' | 'demo' | 'upload' | 'reference';

@@ -44,32 +44,99 @@ function sanitizeApiKey(raw: string): string {
   return v;
 }
 
-const SYSTEM_PROMPT = `You are a senior CFO advisor and restructuring expert. Your role is to analyze company diagnostic data and produce a comprehensive, actionable diagnostic report for CFO-level decision making.
+// ============================================================================
+// Tier-Specific System Prompts
+// ============================================================================
 
-You must respond with a JSON object containing the following sections. Each section should be in Markdown format:
+const BASE_SYSTEM = `You are a senior CFO advisor and restructuring expert. Your role is to analyze company diagnostic data and produce actionable diagnostic output for CFO-level decision making.
 
+You must respond with a JSON object. Each text section should be in Markdown format.`;
+
+const JSON_SCHEMA_INSTRUCTION = `
+Your response must be a valid JSON object with this structure:
 {
-  "executiveBrief": "## Executive Brief: [Company Name]\\n\\n### Situation Overview\\n[2-3 paragraph analysis]\\n\\n### Key Findings\\n[Numbered list of 3-5 critical findings]\\n\\n### Recommendation Summary\\n[1-2 paragraph recommendation]",
-  
-  "valueLedger": "## Value Ledger: [Company Name]\\n\\n### Asset Valuation Summary\\n[Table with Book Value, Estimated FMV, Recovery %]\\n\\n### Liability Structure\\n[Table with obligations, amounts, priority, maturity]\\n\\n### Value Creation Opportunities\\n[Bullet list of opportunities]",
-  
-  "scenarios": "## Scenario Analysis: [Company Name]\\n\\n### Base Case\\n[Analysis with assumptions, 12-month outlook, probability]\\n\\n### Upside Case\\n[Analysis]\\n\\n### Downside Case\\n[Analysis]\\n\\n### Scenario-Specific Actions\\n[Brief recommendations]",
-  
-  "options": "## Strategic Options: [Company Name]\\n\\n### Option 1: [Name]\\n[Description, Timeline, Investment Required, Expected Outcome, Risk Level]\\n\\n### Option 2: [Name]\\n[etc.]\\n\\n### Option 3: [Name]\\n[etc.]\\n\\n### Option 4: [Name]\\n[etc.]",
-  
-  "executionPlan": "## Execution Plan: [Company Name]\\n\\n### Immediate Actions (Week 1-2)\\n[Checklist]\\n\\n### Short-Term Workstreams (Week 3-8)\\n[Workstreams with bullet points]\\n\\n### Key Milestones\\n[Table with Milestone, Target Date, Owner, Status]",
-  
-  "evidenceRegister": "## Evidence Register: [Company Name]\\n\\n### Documents Received\\n[Table]\\n\\n### Documents Pending\\n[Checklist]\\n\\n### Evidence Quality Notes\\n[Notes]\\n\\n### Confidence Assessment\\n[Assessment paragraph]",
-  
+  "executiveBrief": "markdown string",
+  "valueLedger": "markdown string",
+  "scenarios": "markdown string",
+  "options": "markdown string",
+  "executionPlan": "markdown string",
+  "evidenceRegister": "markdown string",
   "integrity": {
     "completeness": 0-100,
     "evidenceQuality": 0-100,
     "confidence": 0-100,
-    "missingData": ["list", "of", "missing", "data", "items"]
+    "missingData": ["list", "of", "missing", "items"]
+  }
+}`;
+
+function getSystemPrompt(tier: string): string {
+  switch (tier) {
+    case 'prospect':
+      return `${BASE_SYSTEM}
+
+OUTPUT SCOPE: Prospect Snapshot ($2,500) — Rapid governance triage.
+
+INSTRUCTIONS:
+- executiveBrief: 2-3 paragraph situation overview with "Situation in Plain English" section, "If You Do Nothing" (3 quantified risks), and "First 7 Days" (urgent moves). Keep concise — 1 page equivalent.
+- valueLedger: Brief key financial indicators only (cash position, burn rate, runway). No detailed tables.
+- scenarios: Omit or provide a single paragraph noting that full scenario analysis is available at Executive tier.
+- options: Exactly 3 strategic options with one-line descriptions. No detailed analysis.
+- executionPlan: Omit or state "Execution roadmap not included in Prospect tier."
+- evidenceRegister: Brief confidence note only.
+- integrity: Assess data completeness honestly.
+
+Be specific and quantitative. Focus on the most critical 3 findings.
+${JSON_SCHEMA_INSTRUCTION}`;
+
+    case 'executive':
+      return `${BASE_SYSTEM}
+
+OUTPUT SCOPE: Executive Snapshot ($10,000) — Board-ready diagnostic.
+
+INSTRUCTIONS:
+- executiveBrief: Comprehensive executive summary with stage assessment (Crisis/Degraded/Stable), days-to-critical, and key findings. Include financial impact ranges (P10/P50/P90 where applicable).
+- valueLedger: Summary table with asset valuation, liability structure, and value creation opportunities.
+- scenarios: Full scenario analysis with Base Case, Upside Case, and Downside Case. Include assumptions, 12-month outlook, and probability estimates.
+- options: 4 strategic options with Description, Timeline, Investment Required, Expected Outcome, and Risk Level for each.
+- executionPlan: 7-day immediate action plan with checklist items. Note that 30/90-day roadmap is available at Full tier.
+- evidenceRegister: Documents received/pending checklist with quality assessment.
+- integrity: Thorough assessment with specific missing data items.
+
+Be specific, quantitative, and focus on board-level trade-offs and decision sequencing.
+${JSON_SCHEMA_INSTRUCTION}`;
+
+    case 'full':
+    default:
+      return `${BASE_SYSTEM}
+
+OUTPUT SCOPE: Full Decision Packet ($20,000) — Institutional full diagnostic.
+
+INSTRUCTIONS:
+- executiveBrief: Comprehensive multi-paragraph analysis with stage assessment, key findings (5+), and detailed recommendation. Include financial impact ranges.
+- valueLedger: Detailed tables for Asset Valuation (Book Value, FMV, Recovery %), Liability Structure (obligations, amounts, priority, maturity), and Value Creation Opportunities.
+- scenarios: Full scenario analysis: Base Case, Upside Case, Downside Case with detailed assumptions, 12-month financial outlook, probability estimates, and scenario-specific action triggers.
+- options: 4+ strategic options each with comprehensive Description, Timeline, Investment Required, Expected Outcome, Risk Level, Key Dependencies, and Success Metrics.
+- executionPlan: Complete execution plan with Immediate Actions (Week 1-2), Short-Term Workstreams (Week 3-8), 30-Day Roadmap, 90-Day Roadmap, Key Milestones table, and KPI dashboard recommendations. Include stakeholder communication templates for Board, Investor, and CFO briefings.
+- evidenceRegister: Comprehensive evidence register with documents received (with quality rating), documents pending, evidence quality notes, confidence assessment, and specific recommendations for improving data quality.
+- integrity: Thorough and granular assessment.
+
+Produce institutional-quality output suitable for board presentation, lender review, and investment committee consideration. Be exhaustive, quantitative, and actionable.
+${JSON_SCHEMA_INSTRUCTION}`;
   }
 }
 
-Be specific, quantitative where possible, and focus on actionable insights. Use the company's actual data in your analysis. Calculate runway accurately based on cash and burn rate provided.`;
+function getMaxTokens(tier: string): number {
+  switch (tier) {
+    case 'prospect': return 4000;
+    case 'executive': return 8000;
+    case 'full':
+    default: return 12000;
+  }
+}
+
+// ============================================================================
+// Main Handler
+// ============================================================================
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -81,14 +148,21 @@ serve(async (req) => {
     
     if (!rawKey) {
       return new Response(
-        JSON.stringify({ success: false, error: "ANTHROPIC_API_KEY is not configured" }),
+        JSON.stringify({ 
+          success: false, 
+          error: "LLM credentials not configured — live analysis unavailable." 
+        }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const ANTHROPIC_API_KEY = sanitizeApiKey(rawKey);
 
-    const { wizardData, outputMode } = await req.json() as { wizardData: WizardData; outputMode: string };
+    const { wizardData, outputMode, tier = 'full' } = await req.json() as { 
+      wizardData: WizardData; 
+      outputMode: string;
+      tier?: string;
+    };
 
     if (!wizardData) {
       return new Response(
@@ -97,7 +171,10 @@ serve(async (req) => {
       );
     }
 
-    const userPrompt = `Analyze the following company diagnostic data and produce a comprehensive CFO diagnostic report:
+    const systemPrompt = getSystemPrompt(tier);
+    const maxTokens = getMaxTokens(tier);
+
+    const userPrompt = `Analyze the following company diagnostic data and produce the diagnostic report at the ${tier.toUpperCase()} tier level:
 
 **Company Information:**
 - Company Name: ${wizardData.companyBasics.companyName || 'Not specified'}
@@ -125,12 +202,13 @@ ${wizardData.signalChecklist.signals.length > 0 ? wizardData.signalChecklist.sig
 **Additional Notes:**
 ${wizardData.signalChecklist.notes || 'None provided'}
 
-**Output Mode:** ${outputMode} (${outputMode === 'snapshot' ? 'brief overview' : outputMode === 'rapid' ? 'standard analysis' : 'comprehensive deep-dive'})
+**Diagnostic Tier:** ${tier}
 
-Please provide your analysis as a JSON object with the sections specified.`;
+Please provide your analysis as a JSON object with the sections specified in the system prompt.`;
 
-    console.log("Calling Anthropic API for diagnostic analysis...");
+    console.log(`Calling Anthropic API — tier: ${tier}, max_tokens: ${maxTokens}`);
 
+    // Claude Sonnet 4 is the SOLE LLM — no other providers permitted
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -140,11 +218,11 @@ Please provide your analysis as a JSON object with the sections specified.`;
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 8000,
+        max_tokens: maxTokens,
         messages: [
           { role: "user", content: userPrompt }
         ],
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
       }),
     });
 
@@ -154,7 +232,7 @@ Please provide your analysis as a JSON object with the sections specified.`;
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Anthropic API error [${response.status}]: ${errorText}` 
+          error: `Analysis could not be completed. Please retry or contact support. [${response.status}]`
         }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -166,17 +244,15 @@ Please provide your analysis as a JSON object with the sections specified.`;
     // Parse the JSON from Claude's response
     let analysisResult;
     try {
-      // Try to extract JSON from the response (it might be wrapped in markdown code blocks)
       const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
       const jsonString = jsonMatch ? jsonMatch[1] : content;
       analysisResult = JSON.parse(jsonString);
     } catch (parseError) {
       console.error("Failed to parse Claude response as JSON:", parseError);
-      // Return the raw content for debugging
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Failed to parse AI response",
+          error: "Analysis could not be completed. Please retry or contact support.",
           rawContent: content 
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -188,14 +264,18 @@ Please provide your analysis as a JSON object with the sections specified.`;
         success: true, 
         analysis: analysisResult,
         model: data.model,
-        usage: data.usage
+        usage: data.usage,
+        tier,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Analysis error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Unknown error" }),
+      JSON.stringify({ 
+        success: false, 
+        error: "Analysis could not be completed. Please retry or contact support."
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

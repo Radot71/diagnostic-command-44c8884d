@@ -32,7 +32,7 @@ const App = () => (
             <Route path="/diagnostic" element={<DiagnosticIntake />} />
             <Route path="/demos" element={<DemoScenarioLibrary />} />
             <Route path="/reports" element={<ExportDelivery />} />
-            <Route path="/report" element={<DiagnosticReview />} />
+            <Route path="/report/:id?" element={<DiagnosticReview />} />
             <Route path="/briefings" element={<NotebookLMBriefing />} />
             <Route path="/about" element={<AboutSystem />} />
             <Route path="/live-run-harness" element={<LiveRunHarness />} />

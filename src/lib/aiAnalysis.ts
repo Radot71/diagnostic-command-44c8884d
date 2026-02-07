@@ -1,4 +1,4 @@
-import { WizardData, DiagnosticReport, OutputMode } from './types';
+import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier } from './types';
 
 interface AnalysisResponse {
   success: boolean;
@@ -22,7 +22,8 @@ interface AnalysisResponse {
 
 export async function generateAIReport(
   wizardData: WizardData, 
-  outputMode: OutputMode
+  outputMode: OutputMode,
+  tier: DiagnosticTier = 'full'
 ): Promise<DiagnosticReport> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -33,7 +34,7 @@ export async function generateAIReport(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_KEY}`,
     },
-    body: JSON.stringify({ wizardData, outputMode }),
+    body: JSON.stringify({ wizardData, outputMode, tier }),
   });
 
   if (!response.ok) {

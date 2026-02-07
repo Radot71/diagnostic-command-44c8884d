@@ -9,10 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
-import { situations, signalOptions, generateMockReport } from '@/lib/mockData';
+import { situations, signalOptions } from '@/lib/mockData';
 import { calcRunwayMonths } from '@/lib/currencyUtils';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
+import { saveReport } from '@/lib/reportPersistence';
 import { TierSelection } from '@/components/intake/TierSelection';
 import { GovernancePillars } from '@/components/report/GovernancePillars';
 import { toast } from 'sonner';
@@ -30,7 +31,7 @@ const steps = [
 
 export default function DiagnosticIntake() {
   const navigate = useNavigate();
-  const { wizardData, setWizardData, setReport, setOutputConfig, outputConfig } = useDiagnostic();
+  const { wizardData, setWizardData, setReport, setOutputConfig, outputConfig, setReportSource, setReportId } = useDiagnostic();
   const [currentStep, setCurrentStep] = useState(1);
 
   const updateCompanyBasics = (field: string, value: string) => {
@@ -76,30 +77,39 @@ export default function DiagnosticIntake() {
   const handleRunDiagnostic = async () => {
     setIsRunning(true);
     try {
-      // Use AI-powered analysis via Claude
+      // Use AI-powered analysis via Claude — NO mock fallback
       toast.info('Generating AI analysis...', { duration: 10000 });
-      const aiReport = await generateAIReport(wizardData, 'rapid');
-      // Then run validation which adds meta.validation
+      const aiReport = await generateAIReport(wizardData, 'rapid', outputConfig.tier);
       const validatedReport = await runValidation(aiReport);
       setReport(validatedReport);
+      setReportSource('claude');
       setOutputConfig({ mode: 'rapid', strictMode: true, tier: outputConfig.tier });
-      toast.success('Diagnostic report generated!');
-      navigate('/report');
+
+      // Persist to database
+      try {
+        const id = await saveReport({
+          report: validatedReport,
+          wizardData,
+          outputConfig: { mode: 'rapid', strictMode: true, tier: outputConfig.tier },
+          source: 'claude',
+        });
+        setReportId(id);
+        toast.success('Diagnostic report generated!');
+        navigate(`/report/${id}`);
+      } catch (saveError) {
+        console.error('[DiagnosticOS] Failed to persist report:', saveError);
+        // Still navigate even if save fails — report is in context
+        toast.success('Diagnostic report generated!');
+        navigate('/report');
+      }
     } catch (error) {
       console.error('[DiagnosticOS] Diagnostic run failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to generate report');
-      
-      // Fallback to mock report
-      try {
-        const baseReport = generateMockReport(wizardData, 'rapid');
-        const validatedReport = await runValidation(baseReport);
-        setReport(validatedReport);
-        setOutputConfig({ mode: 'rapid', strictMode: true, tier: outputConfig.tier });
-        toast.info('Used fallback report generation');
-        navigate('/report');
-      } catch (fallbackError) {
-        console.error('[DiagnosticOS] Fallback also failed:', fallbackError);
-      }
+      // NO mock fallback — show clear error and stay on page
+      toast.error(
+        error instanceof Error ? error.message : 'Analysis could not be completed. Please retry or contact support.',
+        { duration: 8000 }
+      );
+      // Do NOT navigate to /report. Do NOT store a mock report.
     } finally {
       setIsRunning(false);
     }
