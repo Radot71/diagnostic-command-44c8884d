@@ -11,6 +11,7 @@ export const reportSections = [
   { id: 'scenarios', label: 'Scenarios', icon: Route },
   { id: 'options', label: 'Options', icon: ClipboardList },
   { id: 'recommendation', label: 'Recommendation', icon: Shield },
+  { id: 'gcas', label: 'GCAS Analysis', icon: Shield },
   { id: 'execution', label: 'Execution Plan', icon: ClipboardList },
   { id: 'evidence', label: 'Evidence Register', icon: FileCheck },
 ];

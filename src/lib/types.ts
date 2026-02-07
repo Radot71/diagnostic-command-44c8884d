@@ -153,6 +153,32 @@ export interface ValidationMetadata {
   fieldDiffs: FieldDiff[];
 }
 
+/** GCAS (Global Currency & Asset Sensitivity) score */
+export type GCASScore = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface GCASAssessment {
+  score: GCASScore;
+  revenueOutsideUS: boolean | null;
+  emergingMarketExposure: boolean | null;
+  weakerDollarImpact: 'help' | 'hurt' | 'neutral' | null;
+  /** Only populated when GCAS = LOW */
+  ebitdaRiskRange?: string;
+  financingRisk?: string;
+  exitMultipleRisk?: string;
+}
+
+export interface CourseCorrection {
+  what: string;
+  why: string;
+  owner: 'CFO' | 'CRO' | 'COO' | 'CEO';
+  timeline: '30 days' | '60 days' | '90 days';
+}
+
+export interface PortfolioRecommendation {
+  action: 'Reposition' | 'Accelerate exit' | 'Restructure';
+  rationale: string;
+}
+
 export interface DiagnosticReport {
   id: string;
   generatedAt: string;
@@ -165,7 +191,19 @@ export interface DiagnosticReport {
     options: string;
     executionPlan: string;
     evidenceRegister: string;
+    /** Pattern & causal analysis (Steps 2-3) — markdown */
+    patternAnalysis?: string;
+    /** GCAS module narrative (Steps 4-5) — markdown */
+    gcasNarrative?: string;
+    /** 90-day course correction narrative (Step 6) — markdown */
+    courseCorrection?: string;
   };
+  /** Structured GCAS assessment */
+  gcas?: GCASAssessment;
+  /** Structured course corrections (when GCAS = LOW) */
+  courseCorrections?: CourseCorrection[];
+  /** Portfolio recommendation */
+  portfolioRecommendation?: PortfolioRecommendation;
   inputSummary: string;
   rawJson: object;
   /** Optional validation metadata from ValidationRunner - safe to ignore */

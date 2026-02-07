@@ -9,6 +9,28 @@ interface AnalysisResponse {
     options: string;
     executionPlan: string;
     evidenceRegister: string;
+    patternAnalysis?: string;
+    gcasNarrative?: string;
+    courseCorrection?: string;
+    gcasAssessment?: {
+      score: 'HIGH' | 'MEDIUM' | 'LOW';
+      revenueOutsideUS: boolean | null;
+      emergingMarketExposure: boolean | null;
+      weakerDollarImpact: 'help' | 'hurt' | 'neutral' | null;
+      ebitdaRiskRange?: string;
+      financingRisk?: string;
+      exitMultipleRisk?: string;
+    };
+    courseCorrections?: Array<{
+      what: string;
+      why: string;
+      owner: 'CFO' | 'CRO' | 'COO' | 'CEO';
+      timeline: '30 days' | '60 days' | '90 days';
+    }>;
+    portfolioRecommendation?: {
+      action: 'Reposition' | 'Accelerate exit' | 'Restructure';
+      rationale: string;
+    };
     integrity: {
       completeness: number;
       evidenceQuality: number;
@@ -67,7 +89,13 @@ export async function generateAIReport(
       options: analysis.options,
       executionPlan: analysis.executionPlan,
       evidenceRegister: analysis.evidenceRegister,
+      patternAnalysis: analysis.patternAnalysis,
+      gcasNarrative: analysis.gcasNarrative,
+      courseCorrection: analysis.courseCorrection,
     },
+    gcas: analysis.gcasAssessment,
+    courseCorrections: analysis.courseCorrections,
+    portfolioRecommendation: analysis.portfolioRecommendation,
     inputSummary: generateInputSummary(wizardData),
     rawJson: wizardData,
   };
