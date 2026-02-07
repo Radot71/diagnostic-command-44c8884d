@@ -31,6 +31,7 @@ import { EvidenceGuardrails } from '@/components/report/EvidenceGuardrails';
 import { EvidenceGate } from '@/components/report/EvidenceGate';
 import { OtherSideReasoning } from '@/components/report/OtherSideReasoning';
 import { FinalVerdict } from '@/components/report/FinalVerdict';
+import { GCASModule } from '@/components/report/GCASModule';
 import { ConfidenceDisplay } from '@/components/report/ConfidenceDisplay';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -167,6 +168,8 @@ export default function DiagnosticReview() {
       case 'options':
       case 'recommendation':
         return report.sections.options;
+      case 'gcas':
+        return null; // handled by GCASModule component
       case 'execution':
         return report.sections.executionPlan;
       case 'evidence':
@@ -473,7 +476,19 @@ export default function DiagnosticReview() {
                     </p>
                   </div>
                   
-                  <ReportContent content={getSectionContent()} section={activeSection} />
+                  {/* GCAS Module — rendered as dedicated component */}
+                  {activeSection === 'gcas' ? (
+                    <GCASModule
+                      gcas={report.gcas}
+                      narrative={report.sections.gcasNarrative}
+                      courseCorrections={report.courseCorrections}
+                      courseCorrectionNarrative={report.sections.courseCorrection}
+                      portfolioRecommendation={report.portfolioRecommendation}
+                      patternAnalysis={report.sections.patternAnalysis}
+                    />
+                  ) : (
+                    <ReportContent content={getSectionContent() || ''} section={activeSection} />
+                  )}
 
                   {/* Final Governance Verdict — end of report */}
                   {activeSection === 'evidence' && (

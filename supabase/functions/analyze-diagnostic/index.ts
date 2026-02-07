@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getSystemPrompt, getMaxTokens } from "./prompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,94 +45,40 @@ function sanitizeApiKey(raw: string): string {
   return v;
 }
 
-// ============================================================================
-// Tier-Specific System Prompts
-// ============================================================================
+function buildUserPrompt(wizardData: WizardData, tier: string): string {
+  return `Analyze the following company diagnostic data and produce the diagnostic report at the ${tier.toUpperCase()} tier level.
 
-const BASE_SYSTEM = `You are a senior CFO advisor and restructuring expert. Your role is to analyze company diagnostic data and produce actionable diagnostic output for CFO-level decision making.
+Follow the 7-step layered framework exactly: Evidence Layer → Pattern Layer → Causal Layer → GCAS Module → Value Translation → 90-Day Course Correction → Final Output.
 
-You must respond with a JSON object. Each text section should be in Markdown format.`;
+**Company Information:**
+- Company Name: ${wizardData.companyBasics.companyName || 'Not specified'}
+- Industry: ${wizardData.companyBasics.industry || 'Not specified'}
+- Revenue: ${wizardData.companyBasics.revenue || 'Not specified'}
+- Employees: ${wizardData.companyBasics.employees || 'Not specified'}
+- Founded: ${wizardData.companyBasics.founded || 'Not specified'}
 
-const JSON_SCHEMA_INSTRUCTION = `
-Your response must be a valid JSON object with this structure:
-{
-  "executiveBrief": "markdown string",
-  "valueLedger": "markdown string",
-  "scenarios": "markdown string",
-  "options": "markdown string",
-  "executionPlan": "markdown string",
-  "evidenceRegister": "markdown string",
-  "integrity": {
-    "completeness": 0-100,
-    "evidenceQuality": 0-100,
-    "confidence": 0-100,
-    "missingData": ["list", "of", "missing", "items"]
-  }
-}`;
+**Situation:**
+- Type: ${wizardData.situation?.title || 'General Assessment'}
+- Category: ${wizardData.situation?.category || 'Not specified'}
+- Urgency: ${wizardData.situation?.urgency || 'medium'}
+- Description: ${wizardData.situation?.description || 'Not specified'}
 
-function getSystemPrompt(tier: string): string {
-  switch (tier) {
-    case 'prospect':
-      return `${BASE_SYSTEM}
+**Financial Position:**
+- Cash on Hand: ${wizardData.runwayInputs.cashOnHand || 'Not specified'}
+- Monthly Burn Rate: ${wizardData.runwayInputs.monthlyBurn || 'Not specified'}
+- Has Debt: ${wizardData.runwayInputs.hasDebt ? 'Yes' : 'No'}
+${wizardData.runwayInputs.hasDebt ? `- Debt Amount: ${wizardData.runwayInputs.debtAmount}
+- Debt Maturity: ${wizardData.runwayInputs.debtMaturity}` : ''}
 
-OUTPUT SCOPE: Prospect Snapshot ($2,500) — Rapid governance triage.
+**Warning Signals Identified:**
+${wizardData.signalChecklist.signals.length > 0 ? wizardData.signalChecklist.signals.map(s => `- ${s}`).join('\n') : '- None selected'}
 
-INSTRUCTIONS:
-- executiveBrief: 2-3 paragraph situation overview with "Situation in Plain English" section, "If You Do Nothing" (3 quantified risks), and "First 7 Days" (urgent moves). Keep concise — 1 page equivalent.
-- valueLedger: Brief key financial indicators only (cash position, burn rate, runway). No detailed tables.
-- scenarios: Omit or provide a single paragraph noting that full scenario analysis is available at Executive tier.
-- options: Exactly 3 strategic options with one-line descriptions. No detailed analysis.
-- executionPlan: Omit or state "Execution roadmap not included in Prospect tier."
-- evidenceRegister: Brief confidence note only.
-- integrity: Assess data completeness honestly.
+**Additional Notes:**
+${wizardData.signalChecklist.notes || 'None provided'}
 
-Be specific and quantitative. Focus on the most critical 3 findings.
-${JSON_SCHEMA_INSTRUCTION}`;
+**Diagnostic Tier:** ${tier}
 
-    case 'executive':
-      return `${BASE_SYSTEM}
-
-OUTPUT SCOPE: Executive Snapshot ($10,000) — Board-ready diagnostic.
-
-INSTRUCTIONS:
-- executiveBrief: Comprehensive executive summary with stage assessment (Crisis/Degraded/Stable), days-to-critical, and key findings. Include financial impact ranges (P10/P50/P90 where applicable).
-- valueLedger: Summary table with asset valuation, liability structure, and value creation opportunities.
-- scenarios: Full scenario analysis with Base Case, Upside Case, and Downside Case. Include assumptions, 12-month outlook, and probability estimates.
-- options: 4 strategic options with Description, Timeline, Investment Required, Expected Outcome, and Risk Level for each.
-- executionPlan: 7-day immediate action plan with checklist items. Note that 30/90-day roadmap is available at Full tier.
-- evidenceRegister: Documents received/pending checklist with quality assessment.
-- integrity: Thorough assessment with specific missing data items.
-
-Be specific, quantitative, and focus on board-level trade-offs and decision sequencing.
-${JSON_SCHEMA_INSTRUCTION}`;
-
-    case 'full':
-    default:
-      return `${BASE_SYSTEM}
-
-OUTPUT SCOPE: Full Decision Packet ($20,000) — Institutional full diagnostic.
-
-INSTRUCTIONS:
-- executiveBrief: Comprehensive multi-paragraph analysis with stage assessment, key findings (5+), and detailed recommendation. Include financial impact ranges.
-- valueLedger: Detailed tables for Asset Valuation (Book Value, FMV, Recovery %), Liability Structure (obligations, amounts, priority, maturity), and Value Creation Opportunities.
-- scenarios: Full scenario analysis: Base Case, Upside Case, Downside Case with detailed assumptions, 12-month financial outlook, probability estimates, and scenario-specific action triggers.
-- options: 4+ strategic options each with comprehensive Description, Timeline, Investment Required, Expected Outcome, Risk Level, Key Dependencies, and Success Metrics.
-- executionPlan: Complete execution plan with Immediate Actions (Week 1-2), Short-Term Workstreams (Week 3-8), 30-Day Roadmap, 90-Day Roadmap, Key Milestones table, and KPI dashboard recommendations. Include stakeholder communication templates for Board, Investor, and CFO briefings.
-- evidenceRegister: Comprehensive evidence register with documents received (with quality rating), documents pending, evidence quality notes, confidence assessment, and specific recommendations for improving data quality.
-- integrity: Thorough and granular assessment.
-
-Produce institutional-quality output suitable for board presentation, lender review, and investment committee consideration. Be exhaustive, quantitative, and actionable.
-${JSON_SCHEMA_INSTRUCTION}`;
-  }
-}
-
-function getMaxTokens(tier: string): number {
-  switch (tier) {
-    case 'prospect': return 4000;
-    case 'executive': return 8000;
-    case 'full':
-    default: return 12000;
-  }
+Please provide your analysis as a JSON object with the sections specified in the system prompt.`;
 }
 
 // ============================================================================
@@ -173,38 +120,7 @@ serve(async (req) => {
 
     const systemPrompt = getSystemPrompt(tier);
     const maxTokens = getMaxTokens(tier);
-
-    const userPrompt = `Analyze the following company diagnostic data and produce the diagnostic report at the ${tier.toUpperCase()} tier level:
-
-**Company Information:**
-- Company Name: ${wizardData.companyBasics.companyName || 'Not specified'}
-- Industry: ${wizardData.companyBasics.industry || 'Not specified'}
-- Revenue: ${wizardData.companyBasics.revenue || 'Not specified'}
-- Employees: ${wizardData.companyBasics.employees || 'Not specified'}
-- Founded: ${wizardData.companyBasics.founded || 'Not specified'}
-
-**Situation:**
-- Type: ${wizardData.situation?.title || 'General Assessment'}
-- Category: ${wizardData.situation?.category || 'Not specified'}
-- Urgency: ${wizardData.situation?.urgency || 'medium'}
-- Description: ${wizardData.situation?.description || 'Not specified'}
-
-**Financial Position:**
-- Cash on Hand: ${wizardData.runwayInputs.cashOnHand || 'Not specified'}
-- Monthly Burn Rate: ${wizardData.runwayInputs.monthlyBurn || 'Not specified'}
-- Has Debt: ${wizardData.runwayInputs.hasDebt ? 'Yes' : 'No'}
-${wizardData.runwayInputs.hasDebt ? `- Debt Amount: ${wizardData.runwayInputs.debtAmount}
-- Debt Maturity: ${wizardData.runwayInputs.debtMaturity}` : ''}
-
-**Warning Signals Identified:**
-${wizardData.signalChecklist.signals.length > 0 ? wizardData.signalChecklist.signals.map(s => `- ${s}`).join('\n') : '- None selected'}
-
-**Additional Notes:**
-${wizardData.signalChecklist.notes || 'None provided'}
-
-**Diagnostic Tier:** ${tier}
-
-Please provide your analysis as a JSON object with the sections specified in the system prompt.`;
+    const userPrompt = buildUserPrompt(wizardData, tier);
 
     console.log(`Calling Anthropic API — tier: ${tier}, max_tokens: ${maxTokens}`);
 
