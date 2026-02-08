@@ -1,17 +1,21 @@
 import { 
-  AlertTriangle, TrendingUp, Target, Route, ClipboardList, FileCheck, Shield, Info
+  AlertTriangle, TrendingUp, Target, Route, ClipboardList, FileCheck, Shield, Info,
+  Globe, Landmark, ShieldCheck, FlaskConical
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 export const reportSections = [
-  { id: 'situation', label: 'Situation', icon: AlertTriangle },
+  { id: 'situation', label: 'Evidence', icon: AlertTriangle },
   { id: 'value', label: 'Value at Risk', icon: TrendingUp },
   { id: 'failures', label: 'Failure Modes', icon: Target },
   { id: 'scenarios', label: 'Scenarios', icon: Route },
   { id: 'options', label: 'Options', icon: ClipboardList },
   { id: 'recommendation', label: 'Recommendation', icon: Shield },
-  { id: 'gcas', label: 'GCAS Analysis', icon: Shield },
+  { id: 'gcas', label: 'GCAS Analysis', icon: Globe },
+  { id: 'preconditions', label: 'Preconditions', icon: ShieldCheck },
+  { id: 'governor', label: 'Governor', icon: Shield },
+  { id: 'selftest', label: 'Self-Test', icon: FlaskConical },
   { id: 'execution', label: 'Execution Plan', icon: ClipboardList },
   { id: 'evidence', label: 'Evidence Register', icon: FileCheck },
 ];

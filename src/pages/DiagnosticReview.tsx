@@ -32,6 +32,9 @@ import { EvidenceGate } from '@/components/report/EvidenceGate';
 import { OtherSideReasoning } from '@/components/report/OtherSideReasoning';
 import { FinalVerdict } from '@/components/report/FinalVerdict';
 import { GCASModule } from '@/components/report/GCASModule';
+import { CriticalPreconditions } from '@/components/report/gcas/CriticalPreconditions';
+import { GovernorDecisionPanel } from '@/components/report/gcas/GovernorDecisionPanel';
+import { SelfTestPanel } from '@/components/report/gcas/SelfTestPanel';
 import { ConfidenceDisplay } from '@/components/report/ConfidenceDisplay';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -170,6 +173,12 @@ export default function DiagnosticReview() {
         return report.sections.options;
       case 'gcas':
         return null; // handled by GCASModule component
+      case 'preconditions':
+        return report.sections.preconditionsNarrative || null;
+      case 'governor':
+        return report.sections.governorNarrative || null;
+      case 'selftest':
+        return report.sections.selfTestNarrative || null;
       case 'execution':
         return report.sections.executionPlan;
       case 'evidence':
@@ -483,7 +492,37 @@ export default function DiagnosticReview() {
                       segmentBreakdown={report.segmentBreakdown}
                       checkpointRule={report.sections.checkpointRule}
                       checkpointGate={report.checkpointGate}
+                      financingNarrative={report.sections.financingNarrative}
+                      financingLeverage={report.financingLeverage}
+                      valueLedgerNarrative={report.sections.valueLedger}
+                      valueLedgerSummary={report.valueLedgerSummary}
+                      preconditionsNarrative={report.sections.preconditionsNarrative}
+                      criticalPreconditions={report.criticalPreconditions}
+                      governorNarrative={report.sections.governorNarrative}
+                      governorDecision={report.governorDecision}
+                      selfTestNarrative={report.sections.selfTestNarrative}
+                      selfTest={report.selfTest}
                     />
+                  ) : activeSection === 'preconditions' ? (
+                    report.criticalPreconditions && report.criticalPreconditions.length > 0 ? (
+                      <div className="border border-border rounded-lg p-4 bg-card">
+                        <CriticalPreconditions preconditions={report.criticalPreconditions} />
+                      </div>
+                    ) : (
+                      <ReportContent content={getSectionContent() || ''} section={activeSection} />
+                    )
+                  ) : activeSection === 'governor' ? (
+                    report.governorDecision ? (
+                      <GovernorDecisionPanel decision={report.governorDecision} />
+                    ) : (
+                      <ReportContent content={getSectionContent() || ''} section={activeSection} />
+                    )
+                  ) : activeSection === 'selftest' ? (
+                    report.selfTest ? (
+                      <SelfTestPanel selfTest={report.selfTest} />
+                    ) : (
+                      <ReportContent content={getSectionContent() || ''} section={activeSection} />
+                    )
                   ) : (
                     <ReportContent content={getSectionContent() || ''} section={activeSection} />
                   )}

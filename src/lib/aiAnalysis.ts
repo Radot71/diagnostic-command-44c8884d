@@ -1,4 +1,4 @@
-import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier, GCASAssessment, CausalImpactRow, SegmentBreakdown, CourseCorrection, CheckpointGate, PortfolioRecommendation } from './types';
+import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier, GCASAssessment, CausalImpactRow, SegmentBreakdown, CourseCorrection, CheckpointGate, PortfolioRecommendation, FinancingLeverage, ValueLedgerSummary, CriticalPrecondition, GovernorDecision, SelfTest } from './types';
 
 interface AnalysisResponse {
   success: boolean;
@@ -15,12 +15,21 @@ interface AnalysisResponse {
     segmentValueMath?: string;
     courseCorrection?: string;
     checkpointRule?: string;
+    financingNarrative?: string;
+    preconditionsNarrative?: string;
+    governorNarrative?: string;
+    selfTestNarrative?: string;
     gcasAssessment?: GCASAssessment;
     causalImpactRows?: CausalImpactRow[];
     segmentBreakdown?: SegmentBreakdown;
     courseCorrections?: CourseCorrection[];
     checkpointGate?: CheckpointGate;
     portfolioRecommendation?: PortfolioRecommendation;
+    financingLeverage?: FinancingLeverage;
+    valueLedgerSummary?: ValueLedgerSummary;
+    criticalPreconditions?: CriticalPrecondition[];
+    governorDecision?: GovernorDecision;
+    selfTest?: SelfTest;
     integrity: {
       completeness: number;
       evidenceQuality: number;
@@ -85,6 +94,10 @@ export async function generateAIReport(
       segmentValueMath: analysis.segmentValueMath,
       courseCorrection: analysis.courseCorrection,
       checkpointRule: analysis.checkpointRule,
+      financingNarrative: analysis.financingNarrative,
+      preconditionsNarrative: analysis.preconditionsNarrative,
+      governorNarrative: analysis.governorNarrative,
+      selfTestNarrative: analysis.selfTestNarrative,
     },
     gcas: analysis.gcasAssessment,
     causalImpactRows: analysis.causalImpactRows,
@@ -92,6 +105,11 @@ export async function generateAIReport(
     courseCorrections: analysis.courseCorrections,
     checkpointGate: analysis.checkpointGate,
     portfolioRecommendation: analysis.portfolioRecommendation,
+    financingLeverage: analysis.financingLeverage,
+    valueLedgerSummary: analysis.valueLedgerSummary,
+    criticalPreconditions: analysis.criticalPreconditions,
+    governorDecision: analysis.governorDecision,
+    selfTest: analysis.selfTest,
     inputSummary: generateInputSummary(wizardData),
     rawJson: wizardData,
   };
