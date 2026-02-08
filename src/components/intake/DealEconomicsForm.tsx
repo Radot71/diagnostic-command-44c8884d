@@ -315,23 +315,32 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
   );
 }
 
-/** Validation: returns true if all required Deal Economics fields are filled */
-export function isDealEconomicsComplete(data: DealEconomics): boolean {
-  if (!data.dealType) return false;
-  if (data.dealType === 'other' && !data.dealTypeOther.trim()) return false;
+/** Returns a list of missing/invalid field names. Empty = complete. */
+export function getDealEconomicsErrors(data: DealEconomics): string[] {
+  const errors: string[] = [];
+
+  if (!data.dealType) errors.push('Deal Type');
+  if (data.dealType === 'other' && !data.dealTypeOther.trim()) errors.push('Deal Type (other description)');
 
   const ev = parseNumVal(data.enterpriseValue);
   const eq = parseNumVal(data.equityCheck);
   const ebitda = parseNumVal(data.entryEbitda);
   const margin = parseNumVal(data.ebitdaMargin);
 
-  if (ev <= 0 || eq <= 0 || ebitda <= 0) return false;
-  if (eq > ev) return false;
-  if (margin < 1 || margin > 40) return false;
+  if (ev <= 0) errors.push('Enterprise Value');
+  if (eq <= 0) errors.push('Equity Check');
+  if (eq > ev && ev > 0) errors.push('Equity cannot exceed EV');
+  if (ebitda <= 0) errors.push('Entry EBITDA');
+  if (margin < 1 || margin > 40) errors.push('EBITDA Margin (1–40%)');
 
-  if (data.usRevenuePct === '' || parseNumVal(data.usRevenuePct) < 0 || parseNumVal(data.usRevenuePct) > 100) return false;
-  if (data.exportExposurePct === '') return false;
-  if (data.macroSensitivities.length === 0) return false;
+  if (data.usRevenuePct === '' || parseNumVal(data.usRevenuePct) < 0 || parseNumVal(data.usRevenuePct) > 100) errors.push('US Revenue %');
+  if (data.exportExposurePct === '') errors.push('Export Exposure %');
+  if (data.macroSensitivities.length === 0) errors.push('Macro Sensitivity (select ≥1)');
 
-  return true;
+  return errors;
+}
+
+/** Validation: returns true if all required Deal Economics fields are filled */
+export function isDealEconomicsComplete(data: DealEconomics): boolean {
+  return getDealEconomicsErrors(data).length === 0;
 }
