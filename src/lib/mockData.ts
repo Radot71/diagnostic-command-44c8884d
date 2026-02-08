@@ -250,6 +250,8 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
 export const generateMockReport = (wizardData: WizardData, outputMode: 'snapshot' | 'rapid' | 'full'): DiagnosticReport => {
   const company = wizardData.companyBasics.companyName || 'Target Company';
   const situation = wizardData.situation?.title || 'General Assessment';
+  const hasDebt = wizardData.runwayInputs.hasDebt;
+  const isDistress = wizardData.situation?.urgency === 'critical' || wizardData.situation?.urgency === 'high';
 
   return {
     id: `RPT-${Date.now()}`,
@@ -274,7 +276,7 @@ export const generateMockReport = (wizardData: WizardData, outputMode: 'snapshot
 ${company} is facing a **${situation}** situation requiring immediate attention. Based on the diagnostic inputs provided, we have identified several critical factors that will shape the path forward.
 
 ### Key Findings
-1. **Financial Position**: ${wizardData.runwayInputs.hasDebt ? `Debt of ${wizardData.runwayInputs.debtAmount} with ${wizardData.runwayInputs.debtMaturity} to maturity creates pressure on liquidity management.` : 'No significant debt constraints identified.'}
+1. **Financial Position**: ${hasDebt ? `Debt of ${wizardData.runwayInputs.debtAmount} with ${wizardData.runwayInputs.debtMaturity} to maturity creates pressure on liquidity management.` : 'No significant debt constraints identified.'}
 
 2. **Runway Assessment**: With ${wizardData.runwayInputs.cashOnHand} cash on hand and ${wizardData.runwayInputs.monthlyBurn} monthly burn, the current runway is approximately ${Math.floor(calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn))} months.
 
@@ -414,7 +416,128 @@ ${wizardData.signalChecklist.notes || 'No additional notes provided.'}
 
 ### Confidence Assessment
 Based on available evidence, overall confidence in analysis is **${Math.round((78 + 65 + 72) / 3)}%**. Key gaps in customer and supplier documentation limit visibility into concentration risks and contractual obligations.`,
+
+      // ROOM 2 — Pattern Analysis
+      patternAnalysis: `### Historical Precedent 1: Mid-Market Industrial Downturn (2019–2020)
+**What happened**: Manufacturing companies with similar revenue profiles ($75–120M) experienced margin compression of 300–500 bps when key customers dual-sourced.
+**Time lag**: 6–12 months from signal to full revenue impact.
+**Who suffered**: Single-customer-dependent suppliers with >25% concentration.
+
+### Historical Precedent 2: Credit Tightening Cycle (2022–2023)
+**What happened**: Companies with leverage >3.5x faced covenant pressure as SOFR rose 400+ bps. Refinancing windows narrowed sharply.
+**Time lag**: 3–6 months from first covenant test failure to lender action.
+**Who benefited**: Cash-rich acquirers who purchased distressed assets at 40–60% of replacement cost.
+
+### Historical Precedent 3: Supply Chain Restructuring Wave (2020–2022)
+**What happened**: Customers accelerated supplier diversification, reducing single-source dependency. Incumbents lost 15–30% of contracted volume within 12 months.
+**Time lag**: 6–9 months from dual-source announcement to measurable revenue decline.
+**Correlation vs Causation**: Customer diversification is a leading indicator, not a direct cause of financial distress — but it accelerates existing vulnerabilities.`,
+
+      // ROOM 3 — Causal Impact Table (markdown)
+      causalImpactTable: `| Business Type | Direction | Margin | Financing Pressure |
+|---|---|---|---|
+| U.S.-only | Headwind | Compressing | ${hasDebt ? 'High' : 'Moderate'} |
+| Globally diversified | Mixed | Stable | Moderate |
+| Exporter | Tailwind | Expanding | Low |
+| Domestic consumer | Headwind | Compressing | ${isDistress ? 'High' : 'Moderate'} |
+| Commodity-linked | Mixed | Stable | Moderate |`,
+
+      // ROOM 4 — GCAS Narrative
+      gcasNarrative: `**GCAS Score: LOW** — ${company} operates primarily in the domestic U.S. market with no meaningful international revenue, no emerging market exposure, and a weaker dollar would increase import costs without offsetting export gains. The company is fully exposed to U.S. macro conditions with no natural currency hedge.`,
+
+      // Upgrade A+B — Segment Value Math
+      segmentValueMath: `**U.S. Revenue Segment**: ${wizardData.companyBasics.revenue} fully domestic — EBITDA at risk from margin compression of 200–400 bps under base case.
+**International Revenue**: None identified — no diversification benefit.
+**Export Impact**: Negligible — company does not export.
+**Commodity Cost Impact**: Raw material inputs estimated at 35–45% of COGS; commodity volatility creates ±$1.5–2.5M annual variance.
+
+**Net EBITDA Range**: $6.2M–$9.8M (vs. trailing $11.4M) under stress scenario.
+**Leverage Impact**: If debt is ${wizardData.runwayInputs.debtAmount || 'unknown'}, implied leverage moves from ~2.8x to 3.5–4.2x under stress, likely triggering covenant review.`,
+
+      // Upgrade C — Course Correction narrative
+      courseCorrection: `Three measurable 90-day actions have been identified to stabilize the position and preserve optionality. Each action targets a specific P&L or balance sheet lever with a named owner and measurable KPI.`,
+
+      // Upgrade D — Checkpoint Rule
+      checkpointRule: `**6-Month Decision Gate**: If by Month 6, EBITDA ≥ $8.5M annualized AND refinancing cost ≤ +150 bps over current facility → Stay course and reinvest in growth. If EBITDA < $7.0M OR refinancing cost > +250 bps → Prepare dual-track exit (controlled sale + recapitalization) or deeper operational restructuring.`,
     },
+
+    // ──── GCAS v2 STRUCTURED DATA ────
+
+    gcas: {
+      score: 'LOW',
+      revenueOutsideUS: false,
+      emergingMarketExposure: false,
+      weakerDollarImpact: 'hurt',
+      explanation: `${company} is a domestic-only operator with no international revenue or emerging market exposure. A weaker dollar increases input costs without export offset.`,
+      riskWarning: 'Fully exposed to U.S. macro conditions. No natural currency or geographic hedge. Margin compression risk elevated in a weakening domestic demand environment.',
+      ebitdaRiskRange: '$6.2M–$9.8M (vs. trailing $11.4M)',
+      financingRisk: hasDebt ? 'Leverage could rise to 3.5–4.2x under stress, likely triggering covenant review' : 'Low — no significant debt',
+      exitMultipleRisk: isDistress ? 'Multiple compression of 1.0–1.5x likely under forced timeline' : 'Moderate — 0.5–1.0x compression possible if margins deteriorate',
+    },
+
+    causalImpactRows: [
+      { businessType: 'U.S.-only', direction: 'Headwind', marginDirection: 'Compressing', financingPressure: hasDebt ? 'High' : 'Moderate' },
+      { businessType: 'Globally diversified', direction: 'Mixed', marginDirection: 'Stable', financingPressure: 'Moderate' },
+      { businessType: 'Exporter', direction: 'Tailwind', marginDirection: 'Expanding', financingPressure: 'Low' },
+      { businessType: 'Domestic consumer', direction: 'Headwind', marginDirection: 'Compressing', financingPressure: isDistress ? 'High' : 'Moderate' },
+      { businessType: 'Commodity-linked', direction: 'Mixed', marginDirection: 'Stable', financingPressure: 'Moderate' },
+    ],
+
+    segmentBreakdown: {
+      usRevenue: `${wizardData.companyBasics.revenue} (100% domestic)`,
+      internationalRevenue: 'None identified',
+      exportImpact: 'Negligible — no export revenue',
+      commodityCost: '±$1.5–2.5M annual variance from raw material inputs',
+      netEbitdaRange: '$6.2M–$9.8M (stress) vs. $11.4M trailing',
+      leverageImpact: hasDebt ? `Implied leverage moves from ~2.8x to 3.5–4.2x under stress` : 'N/A — no debt',
+    },
+
+    courseCorrections: [
+      {
+        what: 'Implement 13-week rolling cash forecast with daily sweep protocols',
+        why: 'Establishes real-time liquidity visibility and prevents surprise shortfalls',
+        owner: 'CFO',
+        timeline: '30 days',
+        kpi: 'Forecast accuracy within ±10% of actual cash position by Week 4',
+        scope: '100% of cash management operations',
+      },
+      {
+        what: 'Execute supplier payment prioritization and negotiate extended terms with top-5 vendors',
+        why: 'Preserves trade credit access and extends effective cash runway by 15–30 days',
+        owner: 'COO',
+        timeline: '60 days',
+        kpi: 'Average DPO extended by 10+ days; zero critical supplier disruptions',
+        scope: '65% of total procurement spend',
+      },
+      {
+        what: 'Launch customer diversification pipeline targeting 3 new accounts in adjacent verticals',
+        why: 'Reduces concentration risk and creates revenue optionality beyond top customer',
+        owner: 'CRO',
+        timeline: '90 days',
+        kpi: 'Signed LOIs or pilot agreements with ≥2 new accounts representing $3M+ potential',
+        scope: '35% revenue concentration at risk',
+      },
+    ],
+
+    checkpointGate: {
+      timeframe: '6 months',
+      stayCondition: 'EBITDA ≥ $8.5M annualized AND refinancing cost ≤ +150 bps',
+      exitCondition: 'EBITDA < $7.0M OR refinancing cost > +250 bps',
+      metrics: [
+        'Annualized EBITDA run-rate',
+        'Refinancing spread over base rate',
+        'Customer concentration ratio (top-1)',
+        'Cash runway in months',
+      ],
+    },
+
+    portfolioRecommendation: {
+      action: isDistress ? 'Restructure' : 'Reposition',
+      rationale: isDistress
+        ? `${company} requires immediate operational restructuring to stabilize EBITDA, extend runway, and preserve lender relationships. Exit optionality depends on demonstrating margin recovery within 6 months.`
+        : `${company} should reposition its revenue mix and cost structure to reduce concentration risk and improve margins. Strategic repositioning preserves long-term value while addressing near-term vulnerabilities.`,
+    },
+
     inputSummary: `**Company**: ${wizardData.companyBasics.companyName || 'Not specified'}
 **Industry**: ${wizardData.companyBasics.industry || 'Not specified'}
 **Revenue**: ${wizardData.companyBasics.revenue || 'Not specified'}
@@ -427,7 +550,7 @@ Based on available evidence, overall confidence in analysis is **${Math.round((7
 **Financial Position**:
 - Cash on Hand: ${wizardData.runwayInputs.cashOnHand || 'Not specified'}
 - Monthly Burn: ${wizardData.runwayInputs.monthlyBurn || 'Not specified'}
-- Debt: ${wizardData.runwayInputs.hasDebt ? `${wizardData.runwayInputs.debtAmount} (${wizardData.runwayInputs.debtMaturity} to maturity)` : 'None'}
+- Debt: ${hasDebt ? `${wizardData.runwayInputs.debtAmount} (${wizardData.runwayInputs.debtMaturity} to maturity)` : 'None'}
 
 **Signals Identified**: ${wizardData.signalChecklist.signals.join(', ') || 'None selected'}
 
