@@ -12,7 +12,7 @@ import {
   getFieldDisplayName,
   ValidationResult 
 } from '@/lib/uploadValidation';
-import { WizardData } from '@/lib/types';
+import { WizardData, DEFAULT_DEAL_ECONOMICS } from '@/lib/types';
 import { generateMockReport } from '@/lib/mockData';
 import { saveReport } from '@/lib/reportPersistence';
 
@@ -157,6 +157,7 @@ export default function UploadPacket() {
         notes: '',
         ...parsedData.signalChecklist,
       },
+      dealEconomics: parsedData.dealEconomics || { ...DEFAULT_DEAL_ECONOMICS },
     };
     
     setWizardData(completeData);

@@ -116,6 +116,10 @@ export async function generateAIReport(
 }
 
 function generateInputSummary(wizardData: WizardData): string {
+  const de = wizardData.dealEconomics;
+  const debtDisplay = de.totalDebt || (parseFloat(de.enterpriseValue || '0') - parseFloat(de.equityCheck || '0')).toFixed(1);
+  const leverageDisplay = de.entryLeverage || (parseFloat(debtDisplay || '0') / parseFloat(de.entryEbitda || '1')).toFixed(1);
+
   return `**Company**: ${wizardData.companyBasics.companyName || 'Not specified'}
 **Industry**: ${wizardData.companyBasics.industry || 'Not specified'}
 **Revenue**: ${wizardData.companyBasics.revenue || 'Not specified'}
@@ -129,6 +133,20 @@ function generateInputSummary(wizardData: WizardData): string {
 - Cash on Hand: ${wizardData.runwayInputs.cashOnHand || 'Not specified'}
 - Monthly Burn: ${wizardData.runwayInputs.monthlyBurn || 'Not specified'}
 - Debt: ${wizardData.runwayInputs.hasDebt ? `${wizardData.runwayInputs.debtAmount} (${wizardData.runwayInputs.debtMaturity} to maturity)` : 'None'}
+
+**Deal Economics**:
+- Deal Type: ${de.dealType || 'Not specified'}${de.dealType === 'other' ? ` (${de.dealTypeOther})` : ''}
+- Enterprise Value: $${de.enterpriseValue || '?'}M
+- Equity Check: $${de.equityCheck || '?'}M
+- Total Debt: $${debtDisplay}M
+- Entry EBITDA: $${de.entryEbitda || '?'}M
+- Entry Leverage: ${leverageDisplay}x
+- EBITDA Margin: ${de.ebitdaMargin || '?'}%
+- US Revenue: ${de.usRevenuePct || '?'}%
+- Non-US Revenue: ${100 - parseFloat(de.usRevenuePct || '0')}%
+- Export Exposure: ${de.exportExposurePct || '?'}%
+- Macro Sensitivities: ${de.macroSensitivities?.join(', ') || 'None'}
+- Time Horizon: ${de.timeHorizonMonths || 36} months
 
 **Signals Identified**: ${wizardData.signalChecklist.signals.join(', ') || 'None selected'}
 

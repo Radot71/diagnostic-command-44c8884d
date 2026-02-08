@@ -25,7 +25,7 @@ import { generateMockReport, situations } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
 import { generateReportPdf, generateDeckPdf } from '@/lib/pdfExport';
-import { TIER_CONFIGURATIONS, DiagnosticTier, WizardData, DiagnosticReport } from '@/lib/types';
+import { TIER_CONFIGURATIONS, DiagnosticTier, WizardData, DiagnosticReport, DEFAULT_DEAL_ECONOMICS } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -65,15 +65,10 @@ const TEST_PACKS: TestPack[] = [
         debtMaturity: '60 days',
       },
       signalChecklist: {
-        signals: [
-          'Revenue declining YoY',
-          'Supplier payment extensions requested',
-          'Working capital squeeze',
-          'Delayed financial reporting',
-          'Headcount reductions announced',
-        ],
+        signals: ['Revenue declining YoY', 'Supplier payment extensions requested', 'Working capital squeeze', 'Delayed financial reporting', 'Headcount reductions announced'],
         notes: 'ABL facility fully drawn. Revolver covenant test in 45 days. Key supplier placed on COD terms.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'recapitalization', enterpriseValue: '200', equityCheck: '50', totalDebt: '150', entryEbitda: '18', ebitdaMargin: '12', usRevenuePct: '100', nonUsRevenuePct: '0', exportExposurePct: '0', macroSensitivities: ['rising-rates', 'pmi-contraction'], timeHorizonMonths: 18 },
     },
   },
   {
@@ -97,14 +92,10 @@ const TEST_PACKS: TestPack[] = [
         debtMaturity: '24 months',
       },
       signalChecklist: {
-        signals: [
-          'Revenue declining YoY',
-          'Key customer concentration >30%',
-          'Market share erosion',
-          'Technology platform outdated',
-        ],
+        signals: ['Revenue declining YoY', 'Key customer concentration >30%', 'Market share erosion', 'Technology platform outdated'],
         notes: 'Gross margin declined 800bps over 3 years. Top 3 customers represent 45% of revenue. Private label competition intensifying.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'turnaround', enterpriseValue: '400', equityCheck: '120', totalDebt: '280', entryEbitda: '35', ebitdaMargin: '13', usRevenuePct: '88', nonUsRevenuePct: '12', exportExposurePct: '5', macroSensitivities: ['commodity-volatility', 'supply-chain-risk', 'rising-rates'], timeHorizonMonths: 36 },
     },
   },
   {
@@ -128,14 +119,10 @@ const TEST_PACKS: TestPack[] = [
         debtMaturity: '18 months',
       },
       signalChecklist: {
-        signals: [
-          'Management turnover in last 12 months',
-          'Key customer concentration >30%',
-          'Technology platform outdated',
-          'Market share erosion',
-        ],
+        signals: ['Management turnover in last 12 months', 'Key customer concentration >30%', 'Technology platform outdated', 'Market share erosion'],
         notes: 'Original CTO and 3 VPs departed post-close. Synergy realization at 40% of plan. Customer churn up 2x vs pre-deal.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'add-on', enterpriseValue: '150', equityCheck: '60', totalDebt: '90', entryEbitda: '12', ebitdaMargin: '13', usRevenuePct: '80', nonUsRevenuePct: '20', exportExposurePct: '10', macroSensitivities: ['weaker-usd', 'rising-rates', 'pmi-contraction'], timeHorizonMonths: 24 },
     },
   },
 ];

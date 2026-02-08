@@ -32,12 +32,59 @@ export interface SignalChecklist {
   notes: string;
 }
 
+export type DealType = 'add-on' | 'platform-buyout' | 'carve-out' | 'recapitalization' | 'turnaround' | 'growth-investment' | 'other';
+
+export type MacroSensitivity =
+  | 'weaker-usd'
+  | 'stronger-usd'
+  | 'rising-rates'
+  | 'falling-rates'
+  | 'pmi-contraction'
+  | 'pmi-expansion'
+  | 'supply-chain-risk'
+  | 'commodity-volatility';
+
+export type TimeHorizonMonths = 18 | 24 | 36 | 48;
+
+export interface DealEconomics {
+  dealType: DealType | '';
+  dealTypeOther: string;
+  enterpriseValue: string;
+  equityCheck: string;
+  totalDebt: string;
+  entryEbitda: string;
+  entryLeverage: string;
+  ebitdaMargin: string;
+  usRevenuePct: string;
+  nonUsRevenuePct: string;
+  exportExposurePct: string;
+  macroSensitivities: MacroSensitivity[];
+  timeHorizonMonths: TimeHorizonMonths;
+}
+
 export interface WizardData {
   situation: Situation | null;
   companyBasics: CompanyBasics;
   runwayInputs: RunwayInputs;
   signalChecklist: SignalChecklist;
+  dealEconomics: DealEconomics;
 }
+
+export const DEFAULT_DEAL_ECONOMICS: DealEconomics = {
+  dealType: '',
+  dealTypeOther: '',
+  enterpriseValue: '',
+  equityCheck: '',
+  totalDebt: '',
+  entryEbitda: '',
+  entryLeverage: '',
+  ebitdaMargin: '',
+  usRevenuePct: '',
+  nonUsRevenuePct: '',
+  exportExposurePct: '',
+  macroSensitivities: [],
+  timeHorizonMonths: 36,
+};
 
 export type OutputMode = 'snapshot' | 'rapid' | 'full';
 
