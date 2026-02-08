@@ -211,6 +211,55 @@ export interface CourseCorrection {
 export interface PortfolioRecommendation {
   action: 'Reposition' | 'Accelerate exit' | 'Restructure';
   rationale: string;
+  conditionalFollowOn?: string;
+}
+
+/** SECTION 7 — CFO-Grade Value Ledger */
+export interface ValueLedgerEntry {
+  item: string;
+  base: string;
+  bear: string;
+  tail: string;
+}
+
+export interface ValueLedgerSummary {
+  entries: ValueLedgerEntry[];
+  downsideAtRisk: string;
+  expectedDrawdownBand: string;
+  covenantBreachLikelihood: 'Low' | 'Medium' | 'High' | 'UNKNOWN';
+  refiRiskLikelihood: 'Low' | 'Medium' | 'High' | 'UNKNOWN';
+  exitMultipleCompressionRisk: 'Low' | 'Medium' | 'High' | 'UNKNOWN';
+}
+
+/** SECTION 6 — Financing & Leverage */
+export interface FinancingLeverage {
+  refiCostIncreaseBps: string;
+  covenantPressure: 'Low' | 'Medium' | 'High';
+  leverageImpact: string;
+  exitMultipleTurnsImpact: string;
+}
+
+/** SECTION 8 — Critical Preconditions */
+export interface CriticalPrecondition {
+  name: string;
+  status: 'PASS' | 'FAIL' | 'UNKNOWN';
+  whyItMatters: string;
+}
+
+/** SECTION 12 — Governor Decision */
+export interface GovernorDecision {
+  call: 'GO' | 'CAUTION' | 'NO-GO';
+  riskScore: number;
+  confidenceScore: number;
+  reasons: string[];
+}
+
+/** SECTION 13 — Self-Test */
+export interface SelfTest {
+  mostUncertainArea: string;
+  mostFragileAssumption: string;
+  noGoTrigger: string;
+  singleMitigation: string;
 }
 
 export interface DiagnosticReport {
@@ -237,6 +286,14 @@ export interface DiagnosticReport {
     courseCorrection?: string;
     /** Upgrade D — 6-12 month checkpoint rule */
     checkpointRule?: string;
+    /** SECTION 6 — Financing & leverage narrative */
+    financingNarrative?: string;
+    /** SECTION 8 — Critical preconditions narrative */
+    preconditionsNarrative?: string;
+    /** SECTION 12 — Governor decision narrative */
+    governorNarrative?: string;
+    /** SECTION 13 — Self-test narrative */
+    selfTestNarrative?: string;
   };
   /** Structured GCAS assessment */
   gcas?: GCASAssessment;
@@ -250,6 +307,16 @@ export interface DiagnosticReport {
   checkpointGate?: CheckpointGate;
   /** Portfolio recommendation */
   portfolioRecommendation?: PortfolioRecommendation;
+  /** SECTION 6 — Structured financing & leverage */
+  financingLeverage?: FinancingLeverage;
+  /** SECTION 7 — CFO-grade value ledger */
+  valueLedgerSummary?: ValueLedgerSummary;
+  /** SECTION 8 — Critical preconditions */
+  criticalPreconditions?: CriticalPrecondition[];
+  /** SECTION 12 — Governor decision */
+  governorDecision?: GovernorDecision;
+  /** SECTION 13 — Self-test */
+  selfTest?: SelfTest;
   inputSummary: string;
   rawJson: object;
   /** Optional validation metadata from ValidationRunner - safe to ignore */

@@ -459,6 +459,18 @@ Based on available evidence, overall confidence in analysis is **${Math.round((7
 
       // Upgrade D — Checkpoint Rule
       checkpointRule: `**6-Month Decision Gate**: If by Month 6, EBITDA ≥ $8.5M annualized AND refinancing cost ≤ +150 bps over current facility → Stay course and reinvest in growth. If EBITDA < $7.0M OR refinancing cost > +250 bps → Prepare dual-track exit (controlled sale + recapitalization) or deeper operational restructuring.`,
+
+      // SECTION 6 — Financing & Leverage narrative
+      financingNarrative: `**Refi Cost Increase**: +75–200 bps over current facility rate, reflecting market spread widening and deteriorating credit profile.\n\n**Covenant Pressure**: ${hasDebt ? 'High — leverage covenant at risk of breach within 2 quarters if EBITDA continues to decline.' : 'Low — no material debt covenants in place.'}\n\n**Leverage Impact**: Current leverage ~2.8x could rise to 3.5–4.2x under bear case, with 4.8x+ in tail scenario.\n\n**Exit Multiple Impact**: Compression of -0.5x to -1.5x turns likely under distress signaling.`,
+
+      // SECTION 8 — Critical Preconditions narrative
+      preconditionsNarrative: `Five critical preconditions have been assessed. Customer concentration and covenant terms are the primary blockers requiring resolution before any GO decision can be issued.`,
+
+      // SECTION 12 — Governor Decision narrative
+      governorNarrative: `**Decision: ${isDistress ? 'NO-GO' : 'CAUTION'}**\n\nRisk Score: ${isDistress ? '8' : '6'}/10 | Confidence Score: ${isDistress ? '5' : '6'}/10\n\n1. ${hasDebt ? 'Covenant terms are at risk — leverage trajectory threatens breach within 2 quarters.' : 'Cash position adequate but declining.'}\n2. Customer concentration exceeds safe thresholds — single-customer dependency creates binary risk.\n3. ${isDistress ? 'Multiple critical preconditions are UNKNOWN, blocking GO decision.' : 'Operational metrics show directional improvement but insufficient magnitude.'}`,
+
+      // SECTION 13 — Self-Test narrative
+      selfTestNarrative: `**Most Uncertain Area**: Customer retention probability — dual-sourcing signal could accelerate faster than modeled.\n\n**Most Fragile Assumption**: That the primary customer (35% of revenue) maintains current volume through the restructuring period.\n\n**What Triggers NO-GO Tomorrow**: Notification of formal RFP from primary customer to competitive suppliers.\n\n**Single Mitigation**: Securing a 12-month volume commitment from the primary customer with pricing concession would materially improve the decision framework.`,
     },
 
     // ──── GCAS v2 STRUCTURED DATA ────
@@ -536,6 +548,87 @@ Based on available evidence, overall confidence in analysis is **${Math.round((7
       rationale: isDistress
         ? `${company} requires immediate operational restructuring to stabilize EBITDA, extend runway, and preserve lender relationships. Exit optionality depends on demonstrating margin recovery within 6 months.`
         : `${company} should reposition its revenue mix and cost structure to reduce concentration risk and improve margins. Strategic repositioning preserves long-term value while addressing near-term vulnerabilities.`,
+      conditionalFollowOn: isDistress
+        ? 'If EBITDA recovers to ≥$9M annualized within 6 months, reassess for controlled exit at improved multiples.'
+        : undefined,
+    },
+
+    // SECTION 6 — Financing & Leverage (structured)
+    financingLeverage: {
+      refiCostIncreaseBps: hasDebt ? '+75–200 bps' : '+25–50 bps (facility renewal)',
+      covenantPressure: hasDebt && isDistress ? 'High' : hasDebt ? 'Medium' : 'Low',
+      leverageImpact: hasDebt ? 'Current ~2.8x → projected 3.5–4.2x (bear), 4.8x+ (tail)' : 'N/A — unlevered',
+      exitMultipleTurnsImpact: isDistress ? '-1.0x to -1.5x compression' : '-0.5x to -1.0x compression',
+    },
+
+    // SECTION 7 — CFO-Grade Value Ledger (structured)
+    valueLedgerSummary: {
+      entries: [
+        { item: 'Revenue Impact', base: '-2% to -5%', bear: '-8% to -12%', tail: '-15% to -20%' },
+        { item: 'EBITDA Margin', base: '12.5%', bear: '9.8%', tail: '6.2%' },
+        { item: 'Cash Flow from Ops', base: '$8.2M', bear: '$4.8M', tail: '$1.2M' },
+        { item: 'Capex Requirements', base: '$3.5M', bear: '$2.8M', tail: '$1.5M (maintenance only)' },
+        { item: 'Working Capital', base: '-$1.2M', bear: '-$3.5M', tail: '-$6.8M' },
+        { item: 'Debt Service', base: hasDebt ? '$4.2M' : 'N/A', bear: hasDebt ? '$5.1M' : 'N/A', tail: hasDebt ? '$6.8M (incl. refi)' : 'N/A' },
+      ],
+      downsideAtRisk: isDistress ? '$18M–$28M equity value at risk' : '$8M–$15M equity value at risk',
+      expectedDrawdownBand: isDistress ? '$12M–$22M drawdown' : '$5M–$12M drawdown',
+      covenantBreachLikelihood: hasDebt && isDistress ? 'High' : hasDebt ? 'Medium' : 'Low',
+      refiRiskLikelihood: hasDebt && isDistress ? 'High' : hasDebt ? 'Medium' : 'Low',
+      exitMultipleCompressionRisk: isDistress ? 'High' : 'Medium',
+    },
+
+    // SECTION 8 — Critical Preconditions (structured)
+    criticalPreconditions: [
+      {
+        name: 'Customer Concentration',
+        status: wizardData.signalChecklist.signals.includes('Key customer concentration >30%') ? 'FAIL' : 'UNKNOWN',
+        whyItMatters: 'Single-customer dependency >30% creates binary risk. Loss of top customer could trigger covenant breach and liquidity crisis.',
+      },
+      {
+        name: 'Customer Overlap / Cross-Sell',
+        status: 'UNKNOWN',
+        whyItMatters: 'Without visibility into customer overlap, revenue synergy assumptions are unverified. Cross-sell potential may be overstated.',
+      },
+      {
+        name: 'Covenant Terms',
+        status: hasDebt ? (isDistress ? 'FAIL' : 'PASS') : 'PASS',
+        whyItMatters: 'Covenant breach triggers acceleration rights, potential cross-defaults, and loss of operational flexibility.',
+      },
+      {
+        name: 'Input-Cost Pass-Through',
+        status: 'UNKNOWN',
+        whyItMatters: 'If commodity cost increases cannot be passed to customers, margin compression accelerates faster than modeled.',
+      },
+      {
+        name: 'Integration Capacity',
+        status: wizardData.signalChecklist.signals.includes('Technology platform outdated') ? 'FAIL' : 'PASS',
+        whyItMatters: 'Outdated systems limit ability to execute operational improvements and reduce cost of integration.',
+      },
+    ],
+
+    // SECTION 12 — Governor Decision (structured)
+    governorDecision: {
+      call: isDistress ? 'NO-GO' : 'CAUTION',
+      riskScore: isDistress ? 8 : 6,
+      confidenceScore: isDistress ? 5 : 6,
+      reasons: [
+        hasDebt
+          ? 'Covenant terms are at risk — leverage trajectory threatens breach within 2 quarters.'
+          : 'Cash position adequate but declining trend requires monitoring.',
+        'Customer concentration exceeds safe thresholds — single-customer dependency creates binary risk.',
+        isDistress
+          ? 'Multiple critical preconditions are UNKNOWN, blocking GO decision per strict contract rules.'
+          : 'Operational metrics show directional improvement but insufficient magnitude for GO.',
+      ],
+    },
+
+    // SECTION 13 — Self-Test (structured)
+    selfTest: {
+      mostUncertainArea: 'Customer retention probability — dual-sourcing signal could accelerate faster than modeled.',
+      mostFragileAssumption: `That the primary customer (35% of revenue) maintains current volume through the restructuring period at ${company}.`,
+      noGoTrigger: 'Notification of formal RFP from primary customer to competitive suppliers, or covenant breach notification from senior lender.',
+      singleMitigation: 'Securing a 12-month volume commitment from the primary customer with pricing concession would materially improve the decision framework.',
     },
 
     inputSummary: `**Company**: ${wizardData.companyBasics.companyName || 'Not specified'}
