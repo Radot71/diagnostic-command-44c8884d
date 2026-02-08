@@ -22,6 +22,12 @@ interface DealEconomics {
   timeHorizonMonths: number;
 }
 
+interface OperatingMetrics {
+  annualEbitda?: string;
+  grossMargin?: string;
+  revenueGrowthYoY?: string;
+}
+
 interface WizardData {
   situation: {
     id: string;
@@ -49,6 +55,7 @@ interface WizardData {
     notes: string;
   };
   dealEconomics?: DealEconomics;
+  operatingMetrics?: OperatingMetrics;
 }
 
 function sanitizeApiKey(raw: string): string {
@@ -104,6 +111,11 @@ ${wizardData.runwayInputs.hasDebt ? `- Debt Amount: ${wizardData.runwayInputs.de
 - Export Exposure: ${de?.exportExposurePct || 'UNKNOWN'}%
 - Macro Sensitivities: ${de?.macroSensitivities?.join(', ') || 'None specified'}
 - Time Horizon: ${de?.timeHorizonMonths || 36} months
+
+**Operating Metrics (Optional — use if provided):**
+- Annual EBITDA: ${wizardData.operatingMetrics?.annualEbitda || 'Not provided'}
+- Gross Margin: ${wizardData.operatingMetrics?.grossMargin || 'Not provided'}
+- Revenue Growth YoY: ${wizardData.operatingMetrics?.revenueGrowthYoY || 'Not provided'}
 
 **Warning Signals Identified:**
 ${wizardData.signalChecklist.signals.length > 0 ? wizardData.signalChecklist.signals.map(s => `- ${s}`).join('\n') : '- None selected'}
