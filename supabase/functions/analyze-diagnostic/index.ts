@@ -336,10 +336,11 @@ serve(async (req) => {
 
     const ANTHROPIC_API_KEY = sanitizeApiKey(rawKey);
 
-    const { wizardData, outputMode, tier = "full" } = (await req.json()) as {
+    const { wizardData, outputMode, tier = "full", normalizedIntake } = (await req.json()) as {
       wizardData: WizardData;
       outputMode: string;
       tier?: string;
+      normalizedIntake?: Record<string, unknown>;
     };
 
     if (!wizardData) {
@@ -353,7 +354,7 @@ serve(async (req) => {
     const maxTokens = getMaxTokens(tier);
     const userPrompt = buildUserPrompt(wizardData, tier);
 
-    console.log(`Calling Anthropic API (streaming) — tier: ${tier}, max_tokens: ${maxTokens}`);
+    console.log(`Calling Anthropic API (streaming) — tier: ${tier}, max_tokens: ${maxTokens}, normalizedIntake: ${normalizedIntake ? 'yes' : 'no'}`);
 
     const stream = await streamAnthropicResponse(ANTHROPIC_API_KEY, systemPrompt, userPrompt, maxTokens);
 
