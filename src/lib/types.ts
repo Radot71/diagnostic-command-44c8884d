@@ -62,12 +62,25 @@ export interface DealEconomics {
   timeHorizonMonths: TimeHorizonMonths;
 }
 
+export interface OperatingMetrics {
+  annualEbitda: string;
+  grossMargin: string;
+  revenueGrowthYoY: string;
+}
+
+export const DEFAULT_OPERATING_METRICS: OperatingMetrics = {
+  annualEbitda: '',
+  grossMargin: '',
+  revenueGrowthYoY: '',
+};
+
 export interface WizardData {
   situation: Situation | null;
   companyBasics: CompanyBasics;
   runwayInputs: RunwayInputs;
   signalChecklist: SignalChecklist;
   dealEconomics: DealEconomics;
+  operatingMetrics: OperatingMetrics;
 }
 
 export const DEFAULT_DEAL_ECONOMICS: DealEconomics = {
