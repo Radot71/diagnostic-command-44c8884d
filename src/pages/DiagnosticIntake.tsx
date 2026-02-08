@@ -16,7 +16,7 @@ import { generateAIReport } from '@/lib/aiAnalysis';
 import { saveReport } from '@/lib/reportPersistence';
 import { TierSelection } from '@/components/intake/TierSelection';
 import { GovernancePillars } from '@/components/report/GovernancePillars';
-import { DealEconomicsForm, isDealEconomicsComplete } from '@/components/intake/DealEconomicsForm';
+import { DealEconomicsForm, isDealEconomicsComplete, getDealEconomicsErrors } from '@/components/intake/DealEconomicsForm';
 import { MacroSensitivity, TimeHorizonMonths } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -285,12 +285,21 @@ export default function DiagnosticIntake() {
               onChange={updateDealEconomics}
             />
 
-            {!isDealEconomicsComplete(wizardData.dealEconomics) && (
-              <div className="p-3 rounded bg-warning/10 border border-warning/30 text-sm text-warning-foreground flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-                Complete all Deal Economics fields to unlock Step 4.
-              </div>
-            )}
+            {(() => {
+              const errors = getDealEconomicsErrors(wizardData.dealEconomics);
+              if (errors.length === 0) return null;
+              return (
+                <div className="p-3 rounded bg-warning/10 border border-warning/30 text-sm text-warning-foreground">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                    <span className="font-medium">Missing fields to unlock Step 4:</span>
+                  </div>
+                  <ul className="list-disc list-inside ml-6 text-xs space-y-0.5">
+                    {errors.map(e => <li key={e}>{e}</li>)}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         );
 
