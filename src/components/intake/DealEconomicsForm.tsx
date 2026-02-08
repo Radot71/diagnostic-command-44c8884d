@@ -66,9 +66,10 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
 
   // Auto-calc: Non-US = 100 - US
   const computedNonUs = useMemo(() => {
+    if (!data.usRevenuePct && data.usRevenuePct !== '0') return null;
     const us = parseNumVal(data.usRevenuePct);
     if (us >= 0 && us <= 100) return (100 - us).toString();
-    return '';
+    return null;
   }, [data.usRevenuePct]);
 
   // Validation
@@ -243,7 +244,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
             <Input
               id="nonUsRev"
               type="number"
-              value={computedNonUs || data.nonUsRevenuePct}
+              value={computedNonUs !== null ? computedNonUs : data.nonUsRevenuePct}
               readOnly
               className="bg-muted/50"
               placeholder="Auto-calculated"
@@ -328,8 +329,8 @@ export function isDealEconomicsComplete(data: DealEconomics): boolean {
   if (eq > ev) return false;
   if (margin < 1 || margin > 40) return false;
 
-  if (!data.usRevenuePct || parseNumVal(data.usRevenuePct) < 0 || parseNumVal(data.usRevenuePct) > 100) return false;
-  if (!data.exportExposurePct) return false;
+  if (data.usRevenuePct === '' || parseNumVal(data.usRevenuePct) < 0 || parseNumVal(data.usRevenuePct) > 100) return false;
+  if (data.exportExposurePct === '') return false;
   if (data.macroSensitivities.length === 0) return false;
 
   return true;
