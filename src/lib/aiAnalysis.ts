@@ -1,44 +1,93 @@
 import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier, GCASAssessment, CausalImpactRow, SegmentBreakdown, CourseCorrection, CheckpointGate, PortfolioRecommendation, FinancingLeverage, ValueLedgerSummary, CriticalPrecondition, GovernorDecision, SelfTest } from './types';
 
-interface AnalysisResponse {
-  success: boolean;
-  analysis?: {
-    executiveBrief: string;
-    valueLedger: string;
-    scenarios: string;
-    options: string;
-    executionPlan: string;
-    evidenceRegister: string;
-    patternAnalysis?: string;
-    causalImpactTable?: string;
-    gcasNarrative?: string;
-    segmentValueMath?: string;
-    courseCorrection?: string;
-    checkpointRule?: string;
-    financingNarrative?: string;
-    preconditionsNarrative?: string;
-    governorNarrative?: string;
-    selfTestNarrative?: string;
-    gcasAssessment?: GCASAssessment;
-    causalImpactRows?: CausalImpactRow[];
-    segmentBreakdown?: SegmentBreakdown;
-    courseCorrections?: CourseCorrection[];
-    checkpointGate?: CheckpointGate;
-    portfolioRecommendation?: PortfolioRecommendation;
-    financingLeverage?: FinancingLeverage;
-    valueLedgerSummary?: ValueLedgerSummary;
-    criticalPreconditions?: CriticalPrecondition[];
-    governorDecision?: GovernorDecision;
-    selfTest?: SelfTest;
-    integrity: {
-      completeness: number;
-      evidenceQuality: number;
-      confidence: number;
-      missingData: string[];
-    };
+interface AnalysisResult {
+  executiveBrief: string;
+  valueLedger: string;
+  scenarios: string;
+  options: string;
+  executionPlan: string;
+  evidenceRegister: string;
+  patternAnalysis?: string;
+  causalImpactTable?: string;
+  gcasNarrative?: string;
+  segmentValueMath?: string;
+  courseCorrection?: string;
+  checkpointRule?: string;
+  financingNarrative?: string;
+  preconditionsNarrative?: string;
+  governorNarrative?: string;
+  selfTestNarrative?: string;
+  gcasAssessment?: GCASAssessment;
+  causalImpactRows?: CausalImpactRow[];
+  segmentBreakdown?: SegmentBreakdown;
+  courseCorrections?: CourseCorrection[];
+  checkpointGate?: CheckpointGate;
+  portfolioRecommendation?: PortfolioRecommendation;
+  financingLeverage?: FinancingLeverage;
+  valueLedgerSummary?: ValueLedgerSummary;
+  criticalPreconditions?: CriticalPrecondition[];
+  governorDecision?: GovernorDecision;
+  selfTest?: SelfTest;
+  integrity: {
+    completeness: number;
+    evidenceQuality: number;
+    confidence: number;
+    missingData: string[];
   };
-  error?: string;
-  rawContent?: string;
+}
+
+/**
+ * Read SSE stream from the edge function and assemble the full text response.
+ * Returns the accumulated text content and optional model/usage metadata.
+ */
+async function readStream(response: Response): Promise<{ text: string; model?: string; usage?: Record<string, unknown> }> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+  let model: string | undefined;
+  let usage: Record<string, unknown> | undefined;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") continue;
+
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.text) {
+          fullText += parsed.text;
+        }
+        if (parsed.meta?.model) {
+          model = parsed.meta.model;
+        }
+        if (parsed.usage) {
+          usage = parsed.usage;
+        }
+      } catch {
+        // Skip unparseable lines
+      }
+    }
+  }
+
+  return { text: fullText, model, usage };
+}
+
+/**
+ * Parse a JSON string from Claude's response, handling code-fenced and raw JSON.
+ */
+function parseAnalysisJson(content: string): AnalysisResult {
+  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
+  const jsonString = jsonMatch ? jsonMatch[1] : content;
+  return JSON.parse(jsonString);
 }
 
 export async function generateAIReport(
@@ -59,17 +108,35 @@ export async function generateAIReport(
   });
 
   if (!response.ok) {
+    // Non-streaming error responses come as JSON
     const errorData = await response.json().catch(() => ({ error: 'Network error' }));
     throw new Error(errorData.error || `Analysis failed with status ${response.status}`);
   }
 
-  const data: AnalysisResponse = await response.json();
+  const contentType = response.headers.get('content-type') || '';
 
-  if (!data.success || !data.analysis) {
-    throw new Error(data.error || 'Failed to generate analysis');
+  let analysis: AnalysisResult;
+
+  if (contentType.includes('text/event-stream')) {
+    // Streaming response — collect all chunks
+    const { text } = await readStream(response);
+    if (!text) {
+      throw new Error('Empty response from analysis engine');
+    }
+    try {
+      analysis = parseAnalysisJson(text);
+    } catch (parseError) {
+      console.error('Failed to parse streamed response as JSON:', parseError);
+      throw new Error('Analysis completed but response could not be parsed. Please retry.');
+    }
+  } else {
+    // Legacy non-streaming JSON response (fallback)
+    const data = await response.json();
+    if (!data.success || !data.analysis) {
+      throw new Error(data.error || 'Failed to generate analysis');
+    }
+    analysis = data.analysis;
   }
-
-  const analysis = data.analysis;
 
   return {
     id: `RPT-${Date.now()}`,

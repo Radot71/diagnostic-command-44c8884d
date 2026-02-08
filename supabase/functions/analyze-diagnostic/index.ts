@@ -131,6 +131,94 @@ Please provide your analysis as a JSON object with the sections specified in the
 }
 
 // ============================================================================
+// Streaming: read Anthropic SSE and forward text deltas to client
+// ============================================================================
+
+async function streamAnthropicResponse(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number,
+): Promise<ReadableStream<Uint8Array>> {
+  const encoder = new TextEncoder();
+
+  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: maxTokens,
+      stream: true,
+      messages: [{ role: "user", content: userPrompt }],
+      system: systemPrompt,
+    }),
+  });
+
+  if (!anthropicRes.ok) {
+    const errorText = await anthropicRes.text();
+    console.error("Anthropic API error:", anthropicRes.status, errorText);
+    throw new Error(`Anthropic API error [${anthropicRes.status}]`);
+  }
+
+  const reader = anthropicRes.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          // Signal end of stream
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+          return;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === "[DONE]") continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            if (event.type === "content_block_delta" && event.delta?.text) {
+              // Forward text delta to client
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`)
+              );
+            } else if (event.type === "message_start" && event.message) {
+              // Forward model info
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ meta: { model: event.message.model } })}\n\n`)
+              );
+            } else if (event.type === "message_delta" && event.usage) {
+              // Forward usage info
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify({ usage: event.usage })}\n\n`)
+              );
+            }
+          } catch {
+            // Skip unparseable SSE lines
+          }
+        }
+      }
+    },
+    cancel() {
+      reader.cancel();
+    },
+  });
+}
+
+// ============================================================================
 // Main Handler
 // ============================================================================
 
@@ -141,12 +229,12 @@ serve(async (req) => {
 
   try {
     const rawKey = Deno.env.get("ANTHROPIC_API_KEY");
-    
+
     if (!rawKey) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "LLM credentials not configured — live analysis unavailable." 
+        JSON.stringify({
+          success: false,
+          error: "LLM credentials not configured — live analysis unavailable.",
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -154,8 +242,8 @@ serve(async (req) => {
 
     const ANTHROPIC_API_KEY = sanitizeApiKey(rawKey);
 
-    const { wizardData, outputMode, tier = 'full' } = await req.json() as { 
-      wizardData: WizardData; 
+    const { wizardData, outputMode, tier = "full" } = (await req.json()) as {
+      wizardData: WizardData;
       outputMode: string;
       tier?: string;
     };
@@ -171,75 +259,25 @@ serve(async (req) => {
     const maxTokens = getMaxTokens(tier);
     const userPrompt = buildUserPrompt(wizardData, tier);
 
-    console.log(`Calling Anthropic API — tier: ${tier}, max_tokens: ${maxTokens}`);
+    console.log(`Calling Anthropic API (streaming) — tier: ${tier}, max_tokens: ${maxTokens}`);
 
-    // Claude Sonnet 4 is the SOLE LLM — no other providers permitted
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+    const stream = await streamAnthropicResponse(ANTHROPIC_API_KEY, systemPrompt, userPrompt, maxTokens);
+
+    return new Response(stream, {
+      status: 200,
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
       },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: maxTokens,
-        messages: [
-          { role: "user", content: userPrompt }
-        ],
-        system: systemPrompt,
-      }),
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Analysis could not be completed. Please retry or contact support. [${response.status}]`
-        }),
-        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const data = await response.json();
-    const content = data.content?.[0]?.text || "";
-
-    // Parse the JSON from Claude's response
-    let analysisResult;
-    try {
-      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
-      const jsonString = jsonMatch ? jsonMatch[1] : content;
-      analysisResult = JSON.parse(jsonString);
-    } catch (parseError) {
-      console.error("Failed to parse Claude response as JSON:", parseError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Analysis could not be completed. Please retry or contact support.",
-          rawContent: content 
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        analysis: analysisResult,
-        model: data.model,
-        usage: data.usage,
-        tier,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   } catch (error) {
     console.error("Analysis error:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: "Analysis could not be completed. Please retry or contact support."
+      JSON.stringify({
+        success: false,
+        error: "Analysis could not be completed. Please retry or contact support.",
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
