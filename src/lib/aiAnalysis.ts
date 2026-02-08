@@ -93,7 +93,8 @@ function parseAnalysisJson(content: string): AnalysisResult {
 export async function generateAIReport(
   wizardData: WizardData, 
   outputMode: OutputMode,
-  tier: DiagnosticTier = 'full'
+  tier: DiagnosticTier = 'full',
+  normalizedIntake?: object
 ): Promise<DiagnosticReport> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -104,7 +105,7 @@ export async function generateAIReport(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_KEY}`,
     },
-    body: JSON.stringify({ wizardData, outputMode, tier }),
+    body: JSON.stringify({ wizardData, outputMode, tier, normalizedIntake }),
   });
 
   if (!response.ok) {
@@ -184,8 +185,15 @@ export async function generateAIReport(
 
 function generateInputSummary(wizardData: WizardData): string {
   const de = wizardData.dealEconomics;
-  const debtDisplay = de.totalDebt || (parseFloat(de.enterpriseValue || '0') - parseFloat(de.equityCheck || '0')).toFixed(1);
-  const leverageDisplay = de.entryLeverage || (parseFloat(debtDisplay || '0') / parseFloat(de.entryEbitda || '1')).toFixed(1);
+  const ev = parseFloat(de.enterpriseValue || '0');
+  const eq = parseFloat(de.equityCheck || '0');
+  const ebitda = parseFloat(de.entryEbitda || '1');
+  const debt = ev > 0 && eq > 0 ? ev - eq : 0;
+  const leverage = debt > 0 && ebitda > 0 ? (debt / ebitda).toFixed(2) : '?';
+  const multiple = ev > 0 && ebitda > 0 ? (ev / ebitda).toFixed(2) : '?';
+  const cash = parseFloat(wizardData.runwayInputs.cashOnHand || '0');
+  const burn = parseFloat(wizardData.runwayInputs.monthlyBurn || '0');
+  const runway = burn > 0 ? (cash / burn).toFixed(1) : '?';
 
   return `**Company**: ${wizardData.companyBasics.companyName || 'Not specified'}
 **Industry**: ${wizardData.companyBasics.industry || 'Not specified'}
@@ -196,19 +204,23 @@ function generateInputSummary(wizardData: WizardData): string {
 **Situation**: ${wizardData.situation?.title || 'Not specified'}
 **Urgency**: ${wizardData.situation?.urgency || 'Not specified'}
 
-**Financial Position**:
-- Cash on Hand: ${wizardData.runwayInputs.cashOnHand || 'Not specified'}
-- Monthly Burn: ${wizardData.runwayInputs.monthlyBurn || 'Not specified'}
-- Debt: ${wizardData.runwayInputs.hasDebt ? `${wizardData.runwayInputs.debtAmount} (${wizardData.runwayInputs.debtMaturity} to maturity)` : 'None'}
+**Financial Position (Observed)**:
+- Cash on Hand: $${wizardData.runwayInputs.cashOnHand || '?'}M
+- Monthly Burn: $${wizardData.runwayInputs.monthlyBurn || '?'}M
+- Debt: ${wizardData.runwayInputs.hasDebt ? `$${wizardData.runwayInputs.debtAmount || debt.toFixed(1)}M (${wizardData.runwayInputs.debtMaturity || '?'} months to maturity)` : 'None'}
 
-**Deal Economics**:
+**Deal Economics (Observed)**:
 - Deal Type: ${de.dealType || 'Not specified'}${de.dealType === 'other' ? ` (${de.dealTypeOther})` : ''}
 - Enterprise Value: $${de.enterpriseValue || '?'}M
 - Equity Check: $${de.equityCheck || '?'}M
-- Total Debt: $${debtDisplay}M
 - Entry EBITDA: $${de.entryEbitda || '?'}M
-- Entry Leverage: ${leverageDisplay}x
 - EBITDA Margin: ${de.ebitdaMargin || '?'}%
+
+**Computed (Deterministic)**:
+- Total Debt: $${debt.toFixed(1)}M (EV − Equity)
+- Entry Leverage: ${leverage}x (Debt ÷ EBITDA)
+- Entry Multiple: ${multiple}x (EV ÷ EBITDA)
+- Runway: ${runway} months (Cash ÷ Burn)
 - US Revenue: ${de.usRevenuePct || '?'}%
 - Non-US Revenue: ${100 - parseFloat(de.usRevenuePct || '0')}%
 - Export Exposure: ${de.exportExposurePct || '?'}%

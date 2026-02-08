@@ -10,13 +10,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { signalOptions, situationTypes } from '@/lib/mockData';
-import { calcRunwayMonths } from '@/lib/currencyUtils';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
 import { saveReport } from '@/lib/reportPersistence';
 import { TierSelection } from '@/components/intake/TierSelection';
 import { GovernancePillars } from '@/components/report/GovernancePillars';
 import { DealEconomicsForm, isDealEconomicsComplete, getDealEconomicsErrors } from '@/components/intake/DealEconomicsForm';
+import { PreComputeGate } from '@/components/intake/PreComputeGate';
+import { preComputeAndValidate, IntakeConflict } from '@/lib/preComputeValidation';
 import { MacroSensitivity, TimeHorizonMonths } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -31,10 +32,17 @@ const steps = [
   { id: 7, label: 'Data Quality', icon: FileCheck, description: 'Situation classification and review' },
 ];
 
+/** Strip non-numeric characters for strict numeric inputs */
+function sanitizeNumeric(value: string): string {
+  return value.replace(/[^0-9.\-]/g, '');
+}
+
 export default function DiagnosticIntake() {
   const navigate = useNavigate();
   const { wizardData, setWizardData, setReport, setOutputConfig, outputConfig, setReportSource, setReportId } = useDiagnostic();
   const [currentStep, setCurrentStep] = useState(1);
+  const [preComputeConflicts, setPreComputeConflicts] = useState<IntakeConflict[]>([]);
+  const [showPreComputeGate, setShowPreComputeGate] = useState(false);
 
   const updateCompanyBasics = (field: string, value: string) => {
     setWizardData(prev => ({
@@ -90,11 +98,56 @@ export default function DiagnosticIntake() {
 
   const [isRunning, setIsRunning] = useState(false);
 
+  /** Computed runway for display */
+  const computedRunway = (() => {
+    const cash = parseFloat(wizardData.runwayInputs.cashOnHand);
+    const burn = parseFloat(wizardData.runwayInputs.monthlyBurn);
+    if (isNaN(cash) || isNaN(burn) || burn <= 0) return null;
+    return cash / burn;
+  })();
+
+  /** Computed debt from deal economics for cross-check in Step 5 */
+  const computedDebt = (() => {
+    const ev = parseFloat(wizardData.dealEconomics.enterpriseValue);
+    const eq = parseFloat(wizardData.dealEconomics.equityCheck);
+    if (!isNaN(ev) && !isNaN(eq) && ev > 0 && eq > 0) return (ev - eq).toFixed(1);
+    return null;
+  })();
+
   const handleRunDiagnostic = async () => {
+    // Run pre-compute validation first
+    const result = preComputeAndValidate(wizardData, outputConfig.tier);
+
+    if (result.conflicts.length > 0) {
+      setPreComputeConflicts(result.conflicts);
+      setShowPreComputeGate(true);
+
+      if (result.hasBlockingErrors) {
+        toast.error('Fix input errors before running diagnostic');
+        return;
+      }
+      // Has only warnings — show gate for confirmation
+      return;
+    }
+
+    await runDiagnosticWithNormalized(result.normalized!);
+  };
+
+  const handleConfirmWarnings = async () => {
+    const result = preComputeAndValidate(wizardData, outputConfig.tier);
+    if (result.hasBlockingErrors) {
+      toast.error('Fix input errors before running diagnostic');
+      return;
+    }
+    setShowPreComputeGate(false);
+    await runDiagnosticWithNormalized(result.normalized!);
+  };
+
+  const runDiagnosticWithNormalized = async (normalizedIntake: object) => {
     setIsRunning(true);
     try {
       toast.info('Generating AI analysis...', { duration: 10000 });
-      const aiReport = await generateAIReport(wizardData, 'rapid', outputConfig.tier);
+      const aiReport = await generateAIReport(wizardData, 'rapid', outputConfig.tier, normalizedIntake);
       const validatedReport = await runValidation(aiReport);
       setReport(validatedReport);
       setReportSource('claude');
@@ -140,6 +193,31 @@ export default function DiagnosticIntake() {
   };
 
   const renderStepContent = () => {
+    // If pre-compute gate is showing, render it instead of step content
+    if (showPreComputeGate) {
+      return (
+        <PreComputeGate
+          conflicts={preComputeConflicts}
+          onFixInputs={() => {
+            setShowPreComputeGate(false);
+            // Navigate to the step with the first error
+            const firstError = preComputeConflicts[0];
+            if (firstError) {
+              const financialFields = ['enterpriseValue', 'equityCheck', 'entryEbitda', 'ebitdaMargin', 'cashOnHand', 'monthlyBurn', 'usRevenuePct', 'exportExposurePct', 'macroSensitivities', 'dealType', 'dealTypeOther'];
+              const debtFields = ['debtAmount'];
+              if (financialFields.includes(firstError.field)) {
+                setCurrentStep(3);
+              } else if (debtFields.includes(firstError.field)) {
+                setCurrentStep(5);
+              }
+            }
+          }}
+          onConfirmWarnings={handleConfirmWarnings}
+          hasWarningsOnly={!preComputeConflicts.some(c => c.severity === 'error')}
+        />
+      );
+    }
+
     switch (currentStep) {
       // ================================================================
       // STEP 1 — Diagnostic Tier
@@ -232,7 +310,7 @@ export default function DiagnosticIntake() {
             <div>
               <h3 className="text-lg font-semibold text-foreground mb-2">Financial Position</h3>
               <p className="text-sm text-muted-foreground mb-6">
-                This step is the primary gate to analysis. All fields below are required before Step 4 unlocks.
+                This step is the primary gate to analysis. Enter raw numbers only — no $, M, K suffixes.
               </p>
             </div>
 
@@ -241,38 +319,43 @@ export default function DiagnosticIntake() {
               <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">A. Liquidity Inputs</h4>
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="cashOnHand">Cash on Hand ($m) *</Label>
+                  <Label htmlFor="cashOnHand">Cash on Hand ($M) *</Label>
                   <Input
                     id="cashOnHand"
+                    type="text"
+                    inputMode="decimal"
                     value={wizardData.runwayInputs.cashOnHand}
-                    onChange={(e) => updateRunwayInputs('cashOnHand', e.target.value)}
-                    placeholder="e.g., $5M"
+                    onChange={(e) => updateRunwayInputs('cashOnHand', sanitizeNumeric(e.target.value))}
+                    placeholder="e.g., 5"
                   />
+                  {wizardData.runwayInputs.cashOnHand && !/^-?\d+(\.\d+)?$/.test(wizardData.runwayInputs.cashOnHand.trim()) && (
+                    <p className="text-xs text-destructive">Must be a number (in $M, no suffixes)</p>
+                  )}
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="monthlyBurn">Monthly Cash Burn ($m) *</Label>
+                  <Label htmlFor="monthlyBurn">Monthly Cash Burn ($M) *</Label>
                   <Input
                     id="monthlyBurn"
+                    type="text"
+                    inputMode="decimal"
                     value={wizardData.runwayInputs.monthlyBurn}
-                    onChange={(e) => updateRunwayInputs('monthlyBurn', e.target.value)}
-                    placeholder="e.g., $500K"
+                    onChange={(e) => updateRunwayInputs('monthlyBurn', sanitizeNumeric(e.target.value))}
+                    placeholder="e.g., 1"
                   />
                   <p className="text-xs text-muted-foreground">
                     Negative burn indicates a cash-generating business
                   </p>
                 </div>
 
-                {wizardData.runwayInputs.cashOnHand && wizardData.runwayInputs.monthlyBurn && (
+                {computedRunway !== null && (
                   <div className="p-3 rounded bg-muted/50 border border-border">
                     <p className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">Auto-computed Runway: </span>
-                      {(() => {
-                        const runway = calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn);
-                        if (runway >= 99) return 'Cash generating (no runway constraint)';
-                        if (runway > 0) return `${runway.toFixed(1)} months`;
-                        return 'Unable to calculate';
-                      })()}
+                      <span className="font-medium text-foreground">Computed Runway: </span>
+                      <span className="font-mono">
+                        {computedRunway >= 99 ? 'Cash generating (no runway constraint)' : `${computedRunway.toFixed(1)} months`}
+                      </span>
+                      <span className="text-xs ml-2">(Cash ÷ Burn)</span>
                     </p>
                   </div>
                 )}
@@ -349,7 +432,7 @@ export default function DiagnosticIntake() {
         );
 
       // ================================================================
-      // STEP 5 — Constraints
+      // STEP 5 — Constraints (Strict numeric debt fields)
       // ================================================================
       case 5:
         return (
@@ -375,24 +458,48 @@ export default function DiagnosticIntake() {
 
               {wizardData.runwayInputs.hasDebt && (
                 <>
-                  <div className="grid gap-2">
-                    <Label htmlFor="debtAmount">Total Debt Amount *</Label>
-                    <Input
-                      id="debtAmount"
-                      value={wizardData.runwayInputs.debtAmount}
-                      onChange={(e) => updateRunwayInputs('debtAmount', e.target.value)}
-                      placeholder="e.g., $25M"
-                    />
-                  </div>
+                  {/* Show computed debt from EV-Equity if available */}
+                  {computedDebt !== null ? (
+                    <div className="p-3 rounded bg-muted/50 border border-border">
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">Computed Total Debt: </span>
+                        <span className="font-mono">${computedDebt}M</span>
+                        <span className="text-xs ml-2">(EV − Equity from Deal Economics)</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Debt amount is derived from Deal Economics. Only enter a separate amount below if this represents a different obligation.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      <Label htmlFor="debtAmount">Total Debt Amount ($M) *</Label>
+                      <Input
+                        id="debtAmount"
+                        type="text"
+                        inputMode="decimal"
+                        value={wizardData.runwayInputs.debtAmount}
+                        onChange={(e) => updateRunwayInputs('debtAmount', sanitizeNumeric(e.target.value))}
+                        placeholder="e.g., 75"
+                      />
+                      {wizardData.runwayInputs.debtAmount && !/^-?\d+(\.\d+)?$/.test(wizardData.runwayInputs.debtAmount.trim()) && (
+                        <p className="text-xs text-destructive">Must be a number (in $M, no suffixes)</p>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid gap-2">
-                    <Label htmlFor="debtMaturity">Time to Maturity *</Label>
+                    <Label htmlFor="debtMaturity">Debt Maturity (months) *</Label>
                     <Input
                       id="debtMaturity"
+                      type="text"
+                      inputMode="numeric"
                       value={wizardData.runwayInputs.debtMaturity}
-                      onChange={(e) => updateRunwayInputs('debtMaturity', e.target.value)}
-                      placeholder="e.g., 18 months"
+                      onChange={(e) => updateRunwayInputs('debtMaturity', sanitizeNumeric(e.target.value))}
+                      placeholder="e.g., 18"
                     />
+                    {wizardData.runwayInputs.debtMaturity && !/^\d+$/.test(wizardData.runwayInputs.debtMaturity.trim()) && (
+                      <p className="text-xs text-destructive">Must be a whole number (months)</p>
+                    )}
                   </div>
                 </>
               )}
@@ -505,31 +612,51 @@ export default function DiagnosticIntake() {
               </div>
             </div>
 
-            {/* Input Summary */}
+            {/* Input Summary — now shows computed values */}
             <div className="space-y-3 mt-6">
-              <h4 className="text-sm font-semibold text-foreground uppercase tracking-wide">Input Summary</h4>
+              <h4 className="text-sm font-semibold text-foreground uppercase tracking-wide">Input Summary (Observed + Computed)</h4>
               <div className="p-4 rounded-lg bg-muted/30 border border-border space-y-3 text-sm">
                 <SummaryRow label="Tier" value={outputConfig.tier.charAt(0).toUpperCase() + outputConfig.tier.slice(1)} />
                 <SummaryRow label="Company" value={wizardData.companyBasics.companyName || '—'} />
                 <SummaryRow label="Industry" value={wizardData.companyBasics.industry || '—'} />
-                <SummaryRow label="Revenue" value={wizardData.companyBasics.revenue || '—'} />
-                <SummaryRow label="Cash on Hand" value={wizardData.runwayInputs.cashOnHand || '—'} />
-                <SummaryRow label="Monthly Burn" value={wizardData.runwayInputs.monthlyBurn || '—'} />
-                {wizardData.runwayInputs.cashOnHand && wizardData.runwayInputs.monthlyBurn && (
+                <SummaryRow label="Cash on Hand" value={wizardData.runwayInputs.cashOnHand ? `$${wizardData.runwayInputs.cashOnHand}M` : '—'} />
+                <SummaryRow label="Monthly Burn" value={wizardData.runwayInputs.monthlyBurn ? `$${wizardData.runwayInputs.monthlyBurn}M` : '—'} />
+                {computedRunway !== null && (
                   <SummaryRow
-                    label="Computed Runway"
-                    value={(() => {
-                      const runway = calcRunwayMonths(wizardData.runwayInputs.cashOnHand, wizardData.runwayInputs.monthlyBurn);
-                      if (runway >= 99) return 'Cash generating';
-                      if (runway > 0) return `${runway.toFixed(1)} months`;
-                      return '—';
-                    })()}
+                    label="Runway (computed)"
+                    value={computedRunway >= 99 ? 'Cash generating' : `${computedRunway.toFixed(1)} months`}
+                    computed
                   />
                 )}
+                <div className="border-t border-border pt-2 mt-2" />
                 <SummaryRow label="Deal Type" value={wizardData.dealEconomics.dealType || '—'} />
                 <SummaryRow label="Enterprise Value" value={wizardData.dealEconomics.enterpriseValue ? `$${wizardData.dealEconomics.enterpriseValue}M` : '—'} />
+                <SummaryRow label="Equity Check" value={wizardData.dealEconomics.equityCheck ? `$${wizardData.dealEconomics.equityCheck}M` : '—'} />
+                {computedDebt && (
+                  <SummaryRow label="Total Debt (computed)" value={`$${computedDebt}M`} computed />
+                )}
                 <SummaryRow label="Entry EBITDA" value={wizardData.dealEconomics.entryEbitda ? `$${wizardData.dealEconomics.entryEbitda}M` : '—'} />
-                <SummaryRow label="Has Debt" value={wizardData.runwayInputs.hasDebt ? `Yes — ${wizardData.runwayInputs.debtAmount}` : 'No'} />
+                {(() => {
+                  const ev = parseFloat(wizardData.dealEconomics.enterpriseValue);
+                  const ebitda = parseFloat(wizardData.dealEconomics.entryEbitda);
+                  const debt = computedDebt ? parseFloat(computedDebt) : 0;
+                  return (
+                    <>
+                      {!isNaN(ev) && !isNaN(ebitda) && ebitda > 0 && (
+                        <SummaryRow label="Entry Multiple (computed)" value={`${(ev / ebitda).toFixed(2)}x`} computed />
+                      )}
+                      {debt > 0 && !isNaN(ebitda) && ebitda > 0 && (
+                        <SummaryRow label="Entry Leverage (computed)" value={`${(debt / ebitda).toFixed(2)}x`} computed />
+                      )}
+                    </>
+                  );
+                })()}
+                <SummaryRow label="EBITDA Margin" value={wizardData.dealEconomics.ebitdaMargin ? `${wizardData.dealEconomics.ebitdaMargin}%` : '—'} />
+                <SummaryRow label="US Revenue" value={wizardData.dealEconomics.usRevenuePct ? `${wizardData.dealEconomics.usRevenuePct}%` : '—'} />
+                {wizardData.dealEconomics.usRevenuePct && (
+                  <SummaryRow label="Non-US Revenue (computed)" value={`${100 - parseFloat(wizardData.dealEconomics.usRevenuePct || '0')}%`} computed />
+                )}
+                <SummaryRow label="Export Exposure" value={wizardData.dealEconomics.exportExposurePct ? `${wizardData.dealEconomics.exportExposurePct}%` : '—'} />
                 <SummaryRow label="Risk Signals" value={wizardData.signalChecklist.signals.length > 0 ? wizardData.signalChecklist.signals.join(', ') : 'None selected'} />
                 <SummaryRow label="Situation" value={wizardData.situation?.title || 'Not selected'} />
               </div>
@@ -538,7 +665,7 @@ export default function DiagnosticIntake() {
             <div className="p-4 rounded bg-muted/30 border border-border mt-4">
               <p className="text-sm text-foreground font-medium mb-2">Ready to Generate</p>
               <p className="text-sm text-muted-foreground">
-                This diagnostic runs a deterministic institutional engine that produces a decision-grade analysis in seconds — with full audit trail, quantified uncertainty, and clear strategic options.
+                Before running, the system will validate all inputs, compute derived fields, and detect any conflicts. Only the normalized object with computed fields is sent to the analysis engine.
               </p>
             </div>
           </div>
@@ -562,35 +689,37 @@ export default function DiagnosticIntake() {
       <PageContent>
         <div className="max-w-4xl mx-auto">
           {/* Step Indicators */}
-          <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
-            {steps.map((step) => {
-              const isActive = step.id === currentStep;
-              const isComplete = step.id < currentStep;
+          {!showPreComputeGate && (
+            <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
+              {steps.map((step) => {
+                const isActive = step.id === currentStep;
+                const isComplete = step.id < currentStep;
 
-              return (
-                <button
-                  key={step.id}
-                  onClick={() => step.id <= currentStep && setCurrentStep(step.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded text-sm whitespace-nowrap transition-colors",
-                    isActive && "bg-accent text-accent-foreground",
-                    isComplete && "bg-success/10 text-success cursor-pointer",
-                    !isActive && !isComplete && "bg-muted text-muted-foreground"
-                  )}
-                  disabled={step.id > currentStep}
-                >
-                  <div className={cn(
-                    "w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold",
-                    isActive && "bg-accent-foreground/20",
-                    isComplete && "bg-success/20"
-                  )}>
-                    {isComplete ? <Check className="w-3 h-3" /> : step.id}
-                  </div>
-                  <span className="hidden md:inline">{step.label}</span>
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={step.id}
+                    onClick={() => step.id <= currentStep && setCurrentStep(step.id)}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded text-sm whitespace-nowrap transition-colors",
+                      isActive && "bg-accent text-accent-foreground",
+                      isComplete && "bg-success/10 text-success cursor-pointer",
+                      !isActive && !isComplete && "bg-muted text-muted-foreground"
+                    )}
+                    disabled={step.id > currentStep}
+                  >
+                    <div className={cn(
+                      "w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold",
+                      isActive && "bg-accent-foreground/20",
+                      isComplete && "bg-success/20"
+                    )}>
+                      {isComplete ? <Check className="w-3 h-3" /> : step.id}
+                    </div>
+                    <span className="hidden md:inline">{step.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Step Content */}
           <div className="enterprise-card p-6">
@@ -598,37 +727,39 @@ export default function DiagnosticIntake() {
           </div>
 
           {/* Navigation */}
-          <div className="flex justify-between mt-6">
-            <Button
-              variant="outline"
-              onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
-              disabled={currentStep === 1}
-            >
-              Previous
-            </Button>
+          {!showPreComputeGate && (
+            <div className="flex justify-between mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep(prev => Math.max(1, prev - 1))}
+                disabled={currentStep === 1}
+              >
+                Previous
+              </Button>
 
-            {currentStep < steps.length ? (
-              <Button
-                onClick={() => setCurrentStep(prev => Math.min(steps.length, prev + 1))}
-                disabled={!canProceed()}
-              >
-                Continue
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            ) : isRunning ? (
-              <Button disabled>
-                <span className="animate-pulse">Running Diagnostic...</span>
-              </Button>
-            ) : (
-              <Button
-                onClick={handleRunDiagnostic}
-                disabled={!wizardData.situation}
-              >
-                👉 Run Live Diagnostic
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            )}
-          </div>
+              {currentStep < steps.length ? (
+                <Button
+                  onClick={() => setCurrentStep(prev => Math.min(steps.length, prev + 1))}
+                  disabled={!canProceed()}
+                >
+                  Continue
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              ) : isRunning ? (
+                <Button disabled>
+                  <span className="animate-pulse">Running Diagnostic...</span>
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleRunDiagnostic}
+                  disabled={!wizardData.situation}
+                >
+                  👉 Run Live Diagnostic
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </PageContent>
     </EnterpriseLayout>
@@ -636,11 +767,15 @@ export default function DiagnosticIntake() {
 }
 
 /** Compact summary row for Step 7 review */
-function SummaryRow({ label, value }: { label: string; value: string }) {
+function SummaryRow({ label, value, computed }: { label: string; value: string; computed?: boolean }) {
   return (
     <div className="flex justify-between items-start gap-4">
-      <span className="text-muted-foreground whitespace-nowrap">{label}</span>
-      <span className="text-foreground text-right font-medium">{value}</span>
+      <span className={cn("whitespace-nowrap", computed ? "text-accent" : "text-muted-foreground")}>
+        {label}
+      </span>
+      <span className={cn("text-right font-medium", computed ? "font-mono text-accent" : "text-foreground")}>
+        {value}
+      </span>
     </div>
   );
 }
