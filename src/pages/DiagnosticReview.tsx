@@ -456,14 +456,6 @@ export default function DiagnosticReview() {
                     />
                   )}
 
-                  {/* Other-Side Reasoning — all tiers, depth varies */}
-                  <OtherSideReasoning
-                    report={report}
-                    wizardData={wizardData}
-                    currentTier={currentTier}
-                    className="mb-6"
-                  />
-
                   {/* Section Header */}
                   <div className="mb-6">
                     <h2 className="text-xl font-bold text-foreground">
@@ -494,6 +486,16 @@ export default function DiagnosticReview() {
                     />
                   ) : (
                     <ReportContent content={getSectionContent() || ''} section={activeSection} />
+                  )}
+
+                  {/* Other-Side Reasoning — displayed after Scenario Analysis */}
+                  {(activeSection === 'scenarios' || activeSection === 'failures') && (
+                    <OtherSideReasoning
+                      report={report}
+                      wizardData={wizardData}
+                      currentTier={currentTier}
+                      className="mt-6"
+                    />
                   )}
 
                   {/* Final Governance Verdict — end of report */}
