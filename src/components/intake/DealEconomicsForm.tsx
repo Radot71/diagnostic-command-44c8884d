@@ -46,6 +46,13 @@ function parseNumVal(val: string): number {
   return isNaN(n) ? 0 : n;
 }
 
+/** Returns border class for a required field that needs attention */
+function needsInput(value: string | undefined, valid = true): string {
+  if (!value || value.trim() === '') return 'border-destructive/60 bg-destructive/5';
+  if (!valid) return 'border-warning/60 bg-warning/5';
+  return '';
+}
+
 export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
   // Auto-calc: Total Debt = EV - Equity (if blank)
   const computedDebt = useMemo(() => {
@@ -104,7 +111,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
           value={data.dealType}
           onValueChange={(v) => onChange('dealType', v)}
         >
-          <SelectTrigger>
+          <SelectTrigger className={cn(needsInput(data.dealType))}>
             <SelectValue placeholder="Select deal type" />
           </SelectTrigger>
           <SelectContent>
@@ -137,6 +144,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
               value={data.enterpriseValue}
               onChange={(e) => onChange('enterpriseValue', e.target.value)}
               placeholder="e.g., 500"
+              className={cn(needsInput(data.enterpriseValue))}
             />
           </div>
           <div className="grid gap-1.5">
@@ -149,6 +157,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
               value={data.equityCheck}
               onChange={(e) => onChange('equityCheck', e.target.value)}
               placeholder="e.g., 200"
+              className={cn(needsInput(data.equityCheck))}
             />
           </div>
         </div>
@@ -183,6 +192,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
               value={data.entryEbitda}
               onChange={(e) => onChange('entryEbitda', e.target.value)}
               placeholder="e.g., 50"
+              className={cn(needsInput(data.entryEbitda))}
             />
           </div>
         </div>
@@ -211,6 +221,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
               value={data.ebitdaMargin}
               onChange={(e) => onChange('ebitdaMargin', e.target.value)}
               placeholder="e.g., 20"
+              className={cn(needsInput(data.ebitdaMargin, !marginWarning))}
             />
             {marginWarning && (
               <p className="text-xs text-warning">Expected range: 1–40%</p>
@@ -237,6 +248,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
               value={data.usRevenuePct}
               onChange={(e) => onChange('usRevenuePct', e.target.value)}
               placeholder="e.g., 75"
+              className={cn(needsInput(data.usRevenuePct))}
             />
           </div>
           <div className="grid gap-1.5">
@@ -264,6 +276,7 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
           value={data.exportExposurePct}
           onChange={(e) => onChange('exportExposurePct', e.target.value)}
           placeholder="e.g., 15"
+          className={cn(needsInput(data.exportExposurePct))}
         />
       </div>
 
@@ -276,7 +289,10 @@ export function DealEconomicsForm({ data, onChange }: DealEconomicsFormProps) {
           {MACRO_OPTIONS.map(opt => (
             <label
               key={opt.value}
-              className="flex items-center gap-3 p-2.5 rounded border border-border hover:bg-muted/30 cursor-pointer transition-colors"
+              className={cn(
+                "flex items-center gap-3 p-2.5 rounded border hover:bg-muted/30 cursor-pointer transition-colors",
+                data.macroSensitivities.length === 0 ? "border-destructive/60 bg-destructive/5" : "border-border"
+              )}
             >
               <Checkbox
                 checked={data.macroSensitivities.includes(opt.value)}
