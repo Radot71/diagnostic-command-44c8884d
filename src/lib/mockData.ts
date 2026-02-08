@@ -1,4 +1,4 @@
-import { Situation, DiagnosticReport, WizardData } from './types';
+import { Situation, DiagnosticReport, WizardData, DEFAULT_DEAL_ECONOMICS } from './types';
 import { calcRunwayMonths } from './currencyUtils';
 
 export const situations: Situation[] = [
@@ -124,6 +124,7 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
         signals: ['Revenue declining YoY', 'Key customer concentration >30%', 'Technology platform outdated'],
         notes: 'Primary customer (35% of revenue) has signaled intent to dual-source. Legacy ERP system limiting operational visibility.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'turnaround', enterpriseValue: '120', equityCheck: '35', totalDebt: '85', entryEbitda: '12', ebitdaMargin: '14', usRevenuePct: '92', nonUsRevenuePct: '8', exportExposurePct: '5', macroSensitivities: ['rising-rates', 'commodity-volatility'], timeHorizonMonths: 36 },
     },
   },
   {
@@ -148,6 +149,7 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
         signals: ['Market share erosion', 'Management turnover in last 12 months'],
         notes: 'CTO departed 6 months ago. Strong product but facing pressure from well-funded competitors.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'platform-buyout', enterpriseValue: '210', equityCheck: '100', totalDebt: '', entryEbitda: '8', ebitdaMargin: '19', usRevenuePct: '70', nonUsRevenuePct: '30', exportExposurePct: '0', macroSensitivities: ['weaker-usd', 'rising-rates'], timeHorizonMonths: 48 },
     },
   },
   {
@@ -172,6 +174,7 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
         signals: ['Revenue declining YoY', 'Supplier payment extensions requested', 'Working capital squeeze', 'Delayed financial reporting'],
         notes: 'ABL facility approaching borrowing base limit. Q4 performance significantly below plan. Landlord negotiations ongoing for 12 locations.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'recapitalization', enterpriseValue: '180', equityCheck: '40', totalDebt: '140', entryEbitda: '15', ebitdaMargin: '12', usRevenuePct: '100', nonUsRevenuePct: '0', exportExposurePct: '0', macroSensitivities: ['rising-rates', 'pmi-contraction', 'supply-chain-risk'], timeHorizonMonths: 18 },
     },
   },
   {
@@ -196,6 +199,7 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
         signals: ['Revenue declining YoY', 'Supplier payment extensions requested', 'Working capital squeeze', 'Delayed financial reporting', 'Key customer concentration >30%'],
         notes: 'Borrowing base limit imminent. Senior secured lender has requested weekly cash reporting. Two key suppliers moved to COD terms.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'recapitalization', enterpriseValue: '150', equityCheck: '30', totalDebt: '120', entryEbitda: '14', ebitdaMargin: '13', usRevenuePct: '95', nonUsRevenuePct: '5', exportExposurePct: '8', macroSensitivities: ['rising-rates', 'commodity-volatility', 'pmi-contraction'], timeHorizonMonths: 24 },
     },
   },
   {
@@ -220,6 +224,7 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
         signals: ['Key customer concentration >30%', 'Revenue declining YoY', 'Market share erosion'],
         notes: 'Primary customer (35% of revenue) threatening dual-source. Competitor offering 12% discount to take share. Pipeline diversification behind plan.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'add-on', enterpriseValue: '130', equityCheck: '55', totalDebt: '75', entryEbitda: '13', ebitdaMargin: '14', usRevenuePct: '85', nonUsRevenuePct: '15', exportExposurePct: '10', macroSensitivities: ['weaker-usd', 'supply-chain-risk'], timeHorizonMonths: 36 },
     },
   },
   {
@@ -244,6 +249,7 @@ export const demoScenarios: { name: string; data: WizardData }[] = [
         signals: ['Market share erosion', 'Management turnover in last 12 months'],
         notes: 'Board split on growth investment vs. path to profitability. Series C investors expecting exit within 18 months. Burn rate stable but CAC increasing.',
       },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'growth-investment', enterpriseValue: '275', equityCheck: '150', totalDebt: '', entryEbitda: '5', ebitdaMargin: '9', usRevenuePct: '65', nonUsRevenuePct: '35', exportExposurePct: '0', macroSensitivities: ['falling-rates', 'pmi-expansion'], timeHorizonMonths: 24 },
     },
   },
 ];

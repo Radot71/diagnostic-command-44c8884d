@@ -16,6 +16,8 @@ import { generateAIReport } from '@/lib/aiAnalysis';
 import { saveReport } from '@/lib/reportPersistence';
 import { TierSelection } from '@/components/intake/TierSelection';
 import { GovernancePillars } from '@/components/report/GovernancePillars';
+import { DealEconomicsForm, isDealEconomicsComplete } from '@/components/intake/DealEconomicsForm';
+import { MacroSensitivity, TimeHorizonMonths } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +47,13 @@ export default function DiagnosticIntake() {
     setWizardData(prev => ({
       ...prev,
       runwayInputs: { ...prev.runwayInputs, [field]: value },
+    }));
+  };
+
+  const updateDealEconomics = (field: string, value: string | boolean | MacroSensitivity[] | TimeHorizonMonths) => {
+    setWizardData(prev => ({
+      ...prev,
+      dealEconomics: { ...prev.dealEconomics, [field]: value },
     }));
   };
 
@@ -122,7 +131,7 @@ export default function DiagnosticIntake() {
       case 2:
         return wizardData.companyBasics.companyName && wizardData.companyBasics.industry;
       case 3:
-        return wizardData.runwayInputs.cashOnHand && wizardData.runwayInputs.monthlyBurn;
+        return wizardData.runwayInputs.cashOnHand && wizardData.runwayInputs.monthlyBurn && isDealEconomicsComplete(wizardData.dealEconomics);
       default:
         return true;
     }
@@ -254,6 +263,19 @@ export default function DiagnosticIntake() {
                 </div>
               )}
             </div>
+
+            {/* Deal Economics — Required Section */}
+            <DealEconomicsForm
+              data={wizardData.dealEconomics}
+              onChange={updateDealEconomics}
+            />
+
+            {!isDealEconomicsComplete(wizardData.dealEconomics) && (
+              <div className="p-3 rounded bg-warning/10 border border-warning/30 text-sm text-warning-foreground flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
+                Complete Deal Economics to enable deterministic analysis.
+              </div>
+            )}
           </div>
         );
 

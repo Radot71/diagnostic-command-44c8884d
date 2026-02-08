@@ -6,6 +6,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+interface DealEconomics {
+  dealType: string;
+  dealTypeOther?: string;
+  enterpriseValue: string;
+  equityCheck: string;
+  totalDebt: string;
+  entryEbitda: string;
+  entryLeverage: string;
+  ebitdaMargin: string;
+  usRevenuePct: string;
+  nonUsRevenuePct: string;
+  exportExposurePct: string;
+  macroSensitivities: string[];
+  timeHorizonMonths: number;
+}
+
 interface WizardData {
   situation: {
     id: string;
@@ -32,6 +48,7 @@ interface WizardData {
     signals: string[];
     notes: string;
   };
+  dealEconomics?: DealEconomics;
 }
 
 function sanitizeApiKey(raw: string): string {
@@ -46,9 +63,13 @@ function sanitizeApiKey(raw: string): string {
 }
 
 function buildUserPrompt(wizardData: WizardData, tier: string): string {
+  const de = wizardData.dealEconomics;
+  const debtVal = de?.totalDebt || (de ? String(parseFloat(de.enterpriseValue || '0') - parseFloat(de.equityCheck || '0')) : 'UNKNOWN');
+  const leverageVal = de?.entryLeverage || (de && parseFloat(de.entryEbitda || '0') > 0 ? (parseFloat(debtVal) / parseFloat(de.entryEbitda)).toFixed(1) : 'UNKNOWN');
+
   return `Analyze the following company diagnostic data and produce the diagnostic report at the ${tier.toUpperCase()} tier level.
 
-Follow the strict 4-room flow exactly: ROOM 1 (Evidence) → ROOM 2 (Patterns) → ROOM 3 (Causal Impact) → ROOM 4 (GCAS). Then apply all Mandatory Upgrades (A-D).
+Follow the strict 4-room flow exactly: ROOM 1 (Evidence) → ROOM 2 (Patterns) → ROOM 3 (Causal Impact) → ROOM 4 (GCAS). Then apply all Mandatory Upgrades (A-H) and produce all 13 sections.
 
 **Company Information:**
 - Company Name: ${wizardData.companyBasics.companyName || 'Not specified'}
@@ -70,6 +91,20 @@ Follow the strict 4-room flow exactly: ROOM 1 (Evidence) → ROOM 2 (Patterns) �
 ${wizardData.runwayInputs.hasDebt ? `- Debt Amount: ${wizardData.runwayInputs.debtAmount}
 - Debt Maturity: ${wizardData.runwayInputs.debtMaturity}` : ''}
 
+**Deal Economics (Deterministic Inputs):**
+- Deal Type: ${de?.dealType || 'UNKNOWN'}${de?.dealType === 'other' ? ` (${de.dealTypeOther})` : ''}
+- Enterprise Value: $${de?.enterpriseValue || 'UNKNOWN'}M
+- Equity Check: $${de?.equityCheck || 'UNKNOWN'}M
+- Total Debt: $${debtVal}M
+- Entry EBITDA: $${de?.entryEbitda || 'UNKNOWN'}M
+- Entry Leverage: ${leverageVal}x
+- EBITDA Margin: ${de?.ebitdaMargin || 'UNKNOWN'}%
+- US Revenue Mix: ${de?.usRevenuePct || 'UNKNOWN'}%
+- Non-US Revenue Mix: ${de ? String(100 - parseFloat(de.usRevenuePct || '0')) : 'UNKNOWN'}%
+- Export Exposure: ${de?.exportExposurePct || 'UNKNOWN'}%
+- Macro Sensitivities: ${de?.macroSensitivities?.join(', ') || 'None specified'}
+- Time Horizon: ${de?.timeHorizonMonths || 36} months
+
 **Warning Signals Identified:**
 ${wizardData.signalChecklist.signals.length > 0 ? wizardData.signalChecklist.signals.map(s => `- ${s}`).join('\n') : '- None selected'}
 
@@ -77,6 +112,8 @@ ${wizardData.signalChecklist.signals.length > 0 ? wizardData.signalChecklist.sig
 ${wizardData.signalChecklist.notes || 'None provided'}
 
 **Diagnostic Tier:** ${tier}
+
+IMPORTANT: Use the Deal Economics data above as deterministic inputs for GCAS scoring (Q1: revenue outside US = ${de && parseFloat(de.usRevenuePct || '100') < 100 ? 'Yes' : 'No'}), segment-level value math, financing/leverage analysis, and value ledger calculations. Do NOT estimate what is already provided — compute from these numbers.
 
 Please provide your analysis as a JSON object with the sections specified in the system prompt.`;
 }

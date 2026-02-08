@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { WizardData, OutputConfig, DiagnosticReport, Situation, DiagnosticTier, ReportSource } from './types';
+import { WizardData, OutputConfig, DiagnosticReport, Situation, DiagnosticTier, ReportSource, DEFAULT_DEAL_ECONOMICS } from './types';
 
 interface DiagnosticContextType {
   wizardData: WizardData;
@@ -39,6 +39,7 @@ const defaultWizardData: WizardData = {
     signals: [],
     notes: '',
   },
+  dealEconomics: { ...DEFAULT_DEAL_ECONOMICS },
 };
 
 const defaultOutputConfig: OutputConfig = {
