@@ -10,6 +10,7 @@ import { runValidation } from '@/lib/validationRunner';
 import { saveReport } from '@/lib/reportPersistence';
 import { ScenarioComparison } from '@/components/report/ScenarioComparison';
 import { ScenarioCard, type ScenarioCardData } from '@/components/scenarios/ScenarioCard';
+import { DiagnosticTier } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 
@@ -143,7 +144,7 @@ export default function DemoScenarioLibrary() {
   const [comparisonMode, setComparisonMode] = useState(false);
   const [loadingScenario, setLoadingScenario] = useState<string | null>(null);
 
-  const handleOpenDiagnostic = async (scenario: ScenarioCardData) => {
+  const handleOpenDiagnostic = async (scenario: ScenarioCardData, tier: DiagnosticTier = 'full') => {
     setLoadingScenario(scenario.id);
     try {
       const demoData = demoScenarios[scenario.dataIndex];
@@ -153,14 +154,14 @@ export default function DemoScenarioLibrary() {
       const validatedReport = await runValidation(baseReport);
       setReport(validatedReport);
       setReportSource('demo');
-      setOutputConfig({ mode: 'rapid', strictMode: true, tier: 'full' });
+      setOutputConfig({ mode: 'rapid', strictMode: true, tier });
 
       // Persist demo run to database
       try {
         const id = await saveReport({
           report: validatedReport,
           wizardData: demoData.data,
-          outputConfig: { mode: 'rapid', strictMode: true, tier: 'full' },
+          outputConfig: { mode: 'rapid', strictMode: true, tier },
           source: 'demo',
         });
         setReportId(id);
@@ -183,7 +184,7 @@ export default function DemoScenarioLibrary() {
 
   const handleComparisonSelect = (id: string) => {
     const scenario = scenarioLibrary.find(s => s.id === id);
-    if (scenario) handleOpenDiagnostic(scenario);
+    if (scenario) handleOpenDiagnostic(scenario, 'full');
   };
 
   return (
@@ -253,7 +254,7 @@ export default function DemoScenarioLibrary() {
                 selectionDisabled={!selectedForComparison.includes(scenario.id) && selectedForComparison.length >= 3}
                 isLoading={loadingScenario === scenario.id}
                 onToggleSelection={() => toggleScenarioSelection(scenario.id)}
-                onOpenDiagnostic={() => handleOpenDiagnostic(scenario)}
+                onOpenDiagnostic={(tier) => handleOpenDiagnostic(scenario, tier)}
               />
             ))}
           </div>

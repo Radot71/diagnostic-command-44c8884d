@@ -1,13 +1,22 @@
 /**
- * ScenarioCard — Individual demo scenario card with governance indicators
+ * ScenarioCard — Individual demo scenario card with governance indicators + tier picker
  */
 
+import { useState } from 'react';
 import { Shield, AlertOctagon, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ScenarioSelectBadge } from '@/components/report/ScenarioComparison';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { DiagnosticTier, TIER_CONFIGURATIONS } from '@/lib/types';
 
 export type GovernancePosture = 'GO' | 'NO-GO' | 'CONDITIONAL';
 
@@ -108,7 +117,7 @@ interface ScenarioCardProps {
   selectionDisabled: boolean;
   isLoading: boolean;
   onToggleSelection: () => void;
-  onOpenDiagnostic: () => void;
+  onOpenDiagnostic: (tier: DiagnosticTier) => void;
 }
 
 export function ScenarioCard({
@@ -122,6 +131,8 @@ export function ScenarioCard({
   onOpenDiagnostic,
 }: ScenarioCardProps) {
   const Icon = scenario.icon;
+  const [selectedTier, setSelectedTier] = useState<DiagnosticTier>('full');
+  const tierConfig = TIER_CONFIGURATIONS[selectedTier];
 
   return (
     <motion.div
@@ -165,7 +176,7 @@ export function ScenarioCard({
 
       {/* Quick metrics */}
       {scenario.metrics && (
-        <div className="grid grid-cols-2 gap-2 mb-4 p-3 bg-muted/30 rounded">
+        <div className="grid grid-cols-2 gap-2 mb-3 p-3 bg-muted/30 rounded">
           <div>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Cash</p>
             <p className="text-xs font-medium text-foreground">{scenario.metrics.cashPosition}</p>
@@ -177,12 +188,33 @@ export function ScenarioCard({
         </div>
       )}
 
+      {/* Tier Selector */}
+      <div className="mb-3">
+        <Select
+          value={selectedTier}
+          onValueChange={(v) => setSelectedTier(v as DiagnosticTier)}
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.values(TIER_CONFIGURATIONS).map(t => (
+              <SelectItem key={t.id} value={t.id} className="text-xs">
+                <span className="font-medium">{t.name}</span>
+                <span className="ml-2 text-muted-foreground">{t.price}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-[10px] text-muted-foreground mt-1">{tierConfig.pageCount} · {tierConfig.description.split('.')[0]}</p>
+      </div>
+
       {/* Action */}
       <Button
         variant="outline"
         size="sm"
         className="w-full"
-        onClick={onOpenDiagnostic}
+        onClick={() => onOpenDiagnostic(selectedTier)}
         disabled={isLoading}
       >
         {isLoading ? 'Loading...' : 'Open Diagnostic'}
