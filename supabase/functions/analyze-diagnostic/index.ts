@@ -69,14 +69,115 @@ function sanitizeApiKey(raw: string): string {
   return v;
 }
 
+// ============================================================================
+// Deterministic Pre-Computation — all derived values computed here, not by LLM
+// ============================================================================
+
+interface DeterministicValues {
+  ev: number | null;
+  equity: number | null;
+  debt: number | null;
+  ebitda: number | null;
+  ebitdaMargin: number | null;
+  cash: number | null;
+  burn: number | null;
+  runway: number | null;
+  entryMultiple: number | null;
+  entryLeverage: number | null;
+  impliedRevenue: number | null;
+  usRevenuePct: number | null;
+  nonUsRevenuePct: number | null;
+  exportExposurePct: number | null;
+}
+
+function computeDeterministicValues(wizardData: WizardData): DeterministicValues {
+  const de = wizardData.dealEconomics;
+  const ri = wizardData.runwayInputs;
+
+  const ev = de ? parseFloat(de.enterpriseValue || '') : NaN;
+  const equity = de ? parseFloat(de.equityCheck || '') : NaN;
+  const ebitda = de ? parseFloat(de.entryEbitda || '') : NaN;
+  const ebitdaMargin = de ? parseFloat(de.ebitdaMargin || '') : NaN;
+  const cash = ri ? parseFloat(ri.cashOnHand || '') : NaN;
+  const burn = ri ? parseFloat(ri.monthlyBurn || '') : NaN;
+  const usRevenuePct = de ? parseFloat(de.usRevenuePct || '') : NaN;
+  const exportExposurePct = de ? parseFloat(de.exportExposurePct || '') : NaN;
+
+  // Deterministic formulas — MUST match exactly
+  const debt = (!isNaN(ev) && !isNaN(equity)) ? ev - equity : NaN;
+  const runway = (!isNaN(cash) && !isNaN(burn) && burn > 0) ? cash / burn : NaN;
+  const entryMultiple = (!isNaN(ev) && !isNaN(ebitda) && ebitda > 0) ? ev / ebitda : NaN;
+  const entryLeverage = (!isNaN(debt) && !isNaN(ebitda) && ebitda > 0) ? debt / ebitda : NaN;
+  const impliedRevenue = (!isNaN(ebitda) && !isNaN(ebitdaMargin) && ebitdaMargin > 0) ? ebitda / (ebitdaMargin / 100) : NaN;
+  const nonUsRevenuePct = !isNaN(usRevenuePct) ? 100 - usRevenuePct : NaN;
+
+  return {
+    ev: isNaN(ev) ? null : ev,
+    equity: isNaN(equity) ? null : equity,
+    debt: isNaN(debt) ? null : debt,
+    ebitda: isNaN(ebitda) ? null : ebitda,
+    ebitdaMargin: isNaN(ebitdaMargin) ? null : ebitdaMargin,
+    cash: isNaN(cash) ? null : cash,
+    burn: isNaN(burn) ? null : burn,
+    runway: isNaN(runway) ? null : runway,
+    entryMultiple: isNaN(entryMultiple) ? null : entryMultiple,
+    entryLeverage: isNaN(entryLeverage) ? null : entryLeverage,
+    impliedRevenue: isNaN(impliedRevenue) ? null : impliedRevenue,
+    usRevenuePct: isNaN(usRevenuePct) ? null : usRevenuePct,
+    nonUsRevenuePct: isNaN(nonUsRevenuePct) ? null : nonUsRevenuePct,
+    exportExposurePct: isNaN(exportExposurePct) ? null : exportExposurePct,
+  };
+}
+
+function fmt(val: number | null, decimals = 1): string {
+  return val !== null ? val.toFixed(decimals) : 'UNKNOWN';
+}
+
 function buildUserPrompt(wizardData: WizardData, tier: string): string {
   const de = wizardData.dealEconomics;
-  const debtVal = de?.totalDebt || (de ? String(parseFloat(de.enterpriseValue || '0') - parseFloat(de.equityCheck || '0')) : 'UNKNOWN');
-  const leverageVal = de?.entryLeverage || (de && parseFloat(de.entryEbitda || '0') > 0 ? (parseFloat(debtVal) / parseFloat(de.entryEbitda)).toFixed(1) : 'UNKNOWN');
+  const dv = computeDeterministicValues(wizardData);
 
   return `Analyze the following company diagnostic data and produce the diagnostic report at the ${tier.toUpperCase()} tier level.
 
 Follow the strict 4-room flow exactly: ROOM 1 (Evidence) → ROOM 2 (Patterns) → ROOM 3 (Causal Impact) → ROOM 4 (GCAS). Then apply all Mandatory Upgrades (A-H) and produce all 13 sections.
+
+══════════════════════════════════════════════════
+LIVE PE GOVERNOR — CONSISTENCY ENFORCED
+══════════════════════════════════════════════════
+
+HARD RULES:
+1) Only the values in the OBSERVED table below are OBSERVED facts.
+2) Only the values in the INFERRED table below are INFERRED — computed using the exact formulas shown. You MUST use these exact numbers. Do NOT recompute them.
+3) If a value is UNKNOWN, label it UNKNOWN. Do NOT substitute benchmarks unless explicitly flagged as [ASSUMED].
+4) You MUST NOT introduce any new EBITDA, Debt, EV, or Leverage values. Use only the pre-computed figures.
+5) Entry Leverage = Debt / EBITDA = ${fmt(dv.debt)} / ${fmt(dv.ebitda)} = ${fmt(dv.entryLeverage, 2)}x. If you write any other leverage number, you are wrong.
+
+┌──────────────────────────────────────────────────┐
+│ OBSERVED VALUES (from intake — do not change)    │
+├──────────────────────────┬───────────────────────┤
+│ Enterprise Value (EV)    │ $${fmt(dv.ev)}M       │
+│ Equity Check             │ $${fmt(dv.equity)}M   │
+│ Entry EBITDA             │ $${fmt(dv.ebitda)}M   │
+│ EBITDA Margin            │ ${fmt(dv.ebitdaMargin)}%│
+│ Cash on Hand             │ $${fmt(dv.cash)}M     │
+│ Monthly Burn             │ $${fmt(dv.burn)}M     │
+│ US Revenue Mix           │ ${fmt(dv.usRevenuePct, 0)}%│
+│ Export Exposure           │ ${fmt(dv.exportExposurePct, 0)}%│
+│ Debt Maturity Window     │ ${wizardData.runwayInputs.debtMaturity || 'UNKNOWN'}│
+└──────────────────────────┴───────────────────────┘
+
+┌──────────────────────────────────────────────────┐
+│ INFERRED VALUES (pre-computed — use exactly)     │
+├──────────────────────────┬───────────────────────┤
+│ Total Debt (EV-Equity)   │ $${fmt(dv.debt)}M     │
+│ Entry Leverage (Debt/EBITDA)│ ${fmt(dv.entryLeverage, 2)}x│
+│ Entry Multiple (EV/EBITDA)│ ${fmt(dv.entryMultiple, 2)}x│
+│ Runway (Cash/Burn)       │ ${fmt(dv.runway, 1)} months│
+│ Implied Revenue          │ $${fmt(dv.impliedRevenue)}M│
+│ Non-US Revenue Mix       │ ${fmt(dv.nonUsRevenuePct, 0)}%│
+└──────────────────────────┴───────────────────────┘
+
+══════════════════════════════════════════════════
 
 **Company Information:**
 - Company Name: ${wizardData.companyBasics.companyName || 'Not specified'}
@@ -91,24 +192,8 @@ Follow the strict 4-room flow exactly: ROOM 1 (Evidence) → ROOM 2 (Patterns) �
 - Urgency: ${wizardData.situation?.urgency || 'medium'}
 - Description: ${wizardData.situation?.description || 'Not specified'}
 
-**Financial Position:**
-- Cash on Hand: ${wizardData.runwayInputs.cashOnHand || 'Not specified'}
-- Monthly Burn Rate: ${wizardData.runwayInputs.monthlyBurn || 'Not specified'}
-- Has Debt: ${wizardData.runwayInputs.hasDebt ? 'Yes' : 'No'}
-${wizardData.runwayInputs.hasDebt ? `- Debt Amount: ${wizardData.runwayInputs.debtAmount}
-- Debt Maturity: ${wizardData.runwayInputs.debtMaturity}` : ''}
-
-**Deal Economics (Deterministic Inputs):**
+**Deal Economics:**
 - Deal Type: ${de?.dealType || 'UNKNOWN'}${de?.dealType === 'other' ? ` (${de.dealTypeOther})` : ''}
-- Enterprise Value: $${de?.enterpriseValue || 'UNKNOWN'}M
-- Equity Check: $${de?.equityCheck || 'UNKNOWN'}M
-- Total Debt: $${debtVal}M
-- Entry EBITDA: $${de?.entryEbitda || 'UNKNOWN'}M
-- Entry Leverage: ${leverageVal}x
-- EBITDA Margin: ${de?.ebitdaMargin || 'UNKNOWN'}%
-- US Revenue Mix: ${de?.usRevenuePct || 'UNKNOWN'}%
-- Non-US Revenue Mix: ${de ? String(100 - parseFloat(de.usRevenuePct || '0')) : 'UNKNOWN'}%
-- Export Exposure: ${de?.exportExposurePct || 'UNKNOWN'}%
 - Macro Sensitivities: ${de?.macroSensitivities?.join(', ') || 'None specified'}
 - Time Horizon: ${de?.timeHorizonMonths || 36} months
 
@@ -125,7 +210,16 @@ ${wizardData.signalChecklist.notes || 'None provided'}
 
 **Diagnostic Tier:** ${tier}
 
-IMPORTANT: Use the Deal Economics data above as deterministic inputs for GCAS scoring (Q1: revenue outside US = ${de && parseFloat(de.usRevenuePct || '100') < 100 ? 'Yes' : 'No'}), segment-level value math, financing/leverage analysis, and value ledger calculations. Do NOT estimate what is already provided — compute from these numbers.
+DETERMINISTIC SCENARIO BANDS (use exactly):
+- Base: EBITDA [${fmt(dv.ebitda !== null ? dv.ebitda * 0.95 : null)}M, ${fmt(dv.ebitda !== null ? dv.ebitda * 1.05 : null)}M], Multiple [4.0x, 4.5x]
+- Bear: EBITDA [${fmt(dv.ebitda !== null ? dv.ebitda * 0.75 : null)}M, ${fmt(dv.ebitda !== null ? dv.ebitda * 0.85 : null)}M], Multiple [3.5x, 4.0x]
+- Tail: EBITDA [${fmt(dv.ebitda !== null ? dv.ebitda * 0.55 : null)}M, ${fmt(dv.ebitda !== null ? dv.ebitda * 0.65 : null)}M], Multiple [2.5x, 3.5x]
+- Equity = max(Scenario_EV - $${fmt(dv.debt)}M debt, 0). No negative equity.
+
+GCAS SCORING INPUTS (pre-answered from intake):
+- Q1: Revenue outside US? ${dv.nonUsRevenuePct !== null && dv.nonUsRevenuePct > 0 ? 'Yes' : 'No'} (${fmt(dv.nonUsRevenuePct, 0)}% non-US)
+- Q2: Emerging market exposure? Determine from industry + export exposure (${fmt(dv.exportExposurePct, 0)}%)
+- Q3: Weaker USD impact? Determine from revenue mix
 
 Please provide your analysis as a JSON object with the sections specified in the system prompt.`;
 }
