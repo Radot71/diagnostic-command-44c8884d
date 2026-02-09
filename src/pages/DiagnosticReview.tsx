@@ -31,6 +31,7 @@ import { EvidenceGuardrails } from '@/components/report/EvidenceGuardrails';
 import { EvidenceGate } from '@/components/report/EvidenceGate';
 import { OtherSideReasoning } from '@/components/report/OtherSideReasoning';
 import { FinalVerdict } from '@/components/report/FinalVerdict';
+import { AuditFooter } from '@/components/report/AuditFooter';
 import { GCASModule } from '@/components/report/GCASModule';
 import { CriticalPreconditions } from '@/components/report/gcas/CriticalPreconditions';
 import { GovernorDecisionPanel } from '@/components/report/gcas/GovernorDecisionPanel';
@@ -548,6 +549,12 @@ export default function DiagnosticReview() {
                       className="mt-6"
                     />
                   )}
+
+                  {/* Audit Footer — always visible at end of report */}
+                  <AuditFooter
+                    tier={currentTier}
+                    generatedAt={report.generatedAt}
+                  />
                 </>
               )}
             </div>

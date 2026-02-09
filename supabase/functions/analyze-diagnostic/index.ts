@@ -11,12 +11,9 @@ interface DealEconomics {
   dealTypeOther?: string;
   enterpriseValue: string;
   equityCheck: string;
-  totalDebt: string;
   entryEbitda: string;
-  entryLeverage: string;
   ebitdaMargin: string;
   usRevenuePct: string;
-  nonUsRevenuePct: string;
   exportExposurePct: string;
   macroSensitivities: string[];
   timeHorizonMonths: number;
@@ -348,6 +345,23 @@ serve(async (req) => {
         JSON.stringify({ success: false, error: "wizardData is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // If normalizedIntake is provided, inject its values into wizardData for prompt building
+    // This ensures the edge function uses pre-validated, pre-computed values
+    if (normalizedIntake) {
+      const obs = normalizedIntake.observed as Record<string, unknown> | undefined;
+      if (obs && wizardData.dealEconomics) {
+        if (obs.enterpriseValue_m !== undefined) wizardData.dealEconomics.enterpriseValue = String(obs.enterpriseValue_m);
+        if (obs.equityCheck_m !== undefined) wizardData.dealEconomics.equityCheck = String(obs.equityCheck_m);
+        if (obs.entryEbitda_m !== undefined) wizardData.dealEconomics.entryEbitda = String(obs.entryEbitda_m);
+        if (obs.ebitdaMargin_pct !== undefined) wizardData.dealEconomics.ebitdaMargin = String(obs.ebitdaMargin_pct);
+        if (obs.usRevenuePct !== undefined) wizardData.dealEconomics.usRevenuePct = String(obs.usRevenuePct);
+        if (obs.exportExposurePct !== undefined) wizardData.dealEconomics.exportExposurePct = String(obs.exportExposurePct);
+        if (obs.cashOnHand_m !== undefined) wizardData.runwayInputs.cashOnHand = String(obs.cashOnHand_m);
+        if (obs.monthlyBurn_m !== undefined) wizardData.runwayInputs.monthlyBurn = String(obs.monthlyBurn_m);
+        if (obs.debtMaturityMonths !== undefined) wizardData.runwayInputs.debtMaturity = String(obs.debtMaturityMonths);
+      }
     }
 
     const systemPrompt = getSystemPrompt(tier);
