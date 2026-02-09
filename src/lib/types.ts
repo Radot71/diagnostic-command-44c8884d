@@ -51,12 +51,9 @@ export interface DealEconomics {
   dealTypeOther: string;
   enterpriseValue: string;
   equityCheck: string;
-  totalDebt: string;
   entryEbitda: string;
-  entryLeverage: string;
   ebitdaMargin: string;
   usRevenuePct: string;
-  nonUsRevenuePct: string;
   exportExposurePct: string;
   macroSensitivities: MacroSensitivity[];
   timeHorizonMonths: TimeHorizonMonths;
@@ -88,12 +85,9 @@ export const DEFAULT_DEAL_ECONOMICS: DealEconomics = {
   dealTypeOther: '',
   enterpriseValue: '',
   equityCheck: '',
-  totalDebt: '',
   entryEbitda: '',
-  entryLeverage: '',
   ebitdaMargin: '',
   usRevenuePct: '',
-  nonUsRevenuePct: '',
   exportExposurePct: '',
   macroSensitivities: [],
   timeHorizonMonths: 36,

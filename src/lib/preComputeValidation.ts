@@ -88,7 +88,12 @@ export interface PreComputeResult {
 
 function strictParseNum(val: string | undefined | null): number | null {
   if (val === undefined || val === null || val.trim() === '') return null;
-  const cleaned = val.trim();
+  // Strip common suffixes: $, M, K, B, "months", "mo"
+  let cleaned = val.trim()
+    .replace(/^\$/, '')
+    .replace(/[MmKkBb]$/g, '')
+    .replace(/\s*(months?|mo)\s*$/i, '')
+    .trim();
   // Only allow digits, optional decimal, optional leading minus
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null;
   const n = parseFloat(cleaned);
