@@ -3,6 +3,7 @@
   "installCommand": "npm install",
   "outputDirectory": "dist",
   "framework": null,
+  "cleanUrls": true,
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
