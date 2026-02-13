@@ -63,6 +63,11 @@ async function readStream(response: Response): Promise<{ text: string; model?: s
 
       try {
         const parsed = JSON.parse(payload);
+        // Check for error events forwarded from the edge function
+        if (parsed.error) {
+          console.error('[readStream] Server error:', parsed.error);
+          throw new Error(`Analysis engine error: ${parsed.error}`);
+        }
         if (parsed.text) {
           fullText += parsed.text;
         }
@@ -72,8 +77,9 @@ async function readStream(response: Response): Promise<{ text: string; model?: s
         if (parsed.usage) {
           usage = parsed.usage;
         }
-      } catch {
-        // Skip unparseable lines
+      } catch (e) {
+        // Re-throw known errors, skip parse errors
+        if (e instanceof Error && e.message.startsWith('Analysis engine error:')) throw e;
       }
     }
   }
