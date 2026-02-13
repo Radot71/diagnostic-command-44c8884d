@@ -225,6 +225,48 @@ Please provide your analysis as a JSON object with the sections specified in the
 // Streaming: read Anthropic SSE and forward text deltas to client
 // ============================================================================
 
+async function callAnthropicWithRetry(
+  apiKey: string,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number,
+  maxRetries = 3,
+): Promise<Response> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: maxTokens,
+        stream: true,
+        messages: [{ role: "user", content: userPrompt }],
+        system: systemPrompt,
+      }),
+    });
+
+    if (res.ok) return res;
+
+    const errorText = await res.text();
+    const isOverloaded = res.status === 529 || res.status === 503 || errorText.includes("Overloaded");
+    
+    if (isOverloaded && attempt < maxRetries - 1) {
+      const delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000;
+      console.warn(`[retry] Anthropic overloaded (attempt ${attempt + 1}/${maxRetries}), retrying in ${Math.round(delay)}ms`);
+      await new Promise(r => setTimeout(r, delay));
+      continue;
+    }
+
+    console.error("Anthropic API error:", res.status, errorText);
+    throw new Error(`Anthropic API error [${res.status}]`);
+  }
+  throw new Error("Anthropic API failed after retries");
+}
+
 async function streamAnthropicResponse(
   apiKey: string,
   systemPrompt: string,
@@ -232,81 +274,100 @@ async function streamAnthropicResponse(
   maxTokens: number,
 ): Promise<ReadableStream<Uint8Array>> {
   const encoder = new TextEncoder();
+  const MAX_RETRIES = 3;
 
-  const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      stream: true,
-      messages: [{ role: "user", content: userPrompt }],
-      system: systemPrompt,
-    }),
-  });
+  // Try to get a successful stream, retrying on overloaded errors
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const anthropicRes = await callAnthropicWithRetry(apiKey, systemPrompt, userPrompt, maxTokens);
+    
+    // Read the entire response to check for in-stream errors before forwarding
+    const reader = anthropicRes.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const collectedEvents: string[] = [];
+    let hasOverloadError = false;
 
-  if (!anthropicRes.ok) {
-    const errorText = await anthropicRes.text();
-    console.error("Anthropic API error:", anthropicRes.status, errorText);
-    throw new Error(`Anthropic API error [${anthropicRes.status}]`);
-  }
-
-  const reader = anthropicRes.body!.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  return new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          // Signal end of stream
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          controller.close();
-          return;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
           const jsonStr = line.slice(6).trim();
-          if (!jsonStr || jsonStr === "[DONE]") continue;
-
-          try {
-            const event = JSON.parse(jsonStr);
-            if (event.type === "content_block_delta" && event.delta?.text) {
-              // Forward text delta to client
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`)
-              );
-            } else if (event.type === "message_start" && event.message) {
-              // Forward model info
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ meta: { model: event.message.model } })}\n\n`)
-              );
-            } else if (event.type === "message_delta" && event.usage) {
-              // Forward usage info
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ usage: event.usage })}\n\n`)
-              );
-            }
-          } catch {
-            // Skip unparseable SSE lines
+          if (jsonStr && jsonStr !== "[DONE]") {
+            try {
+              const event = JSON.parse(jsonStr);
+              if (event.type === "error") {
+                const errMsg = event.error?.message || JSON.stringify(event.error) || "";
+                if (errMsg.toLowerCase().includes("overloaded")) {
+                  hasOverloadError = true;
+                  break;
+                }
+              }
+            } catch { /* skip */ }
+          }
+          collectedEvents.push(line);
+        } else if (line.startsWith("event: ")) {
+          // Skip event type lines but check for errors
+          const eventType = line.slice(7).trim();
+          if (eventType === "error") {
+            // Next data line may contain overloaded info
           }
         }
       }
-    },
-    cancel() {
-      reader.cancel();
-    },
-  });
+      if (hasOverloadError) break;
+    }
+
+    if (hasOverloadError) {
+      if (attempt < MAX_RETRIES - 1) {
+        const delay = Math.pow(2, attempt) * 3000 + Math.random() * 2000;
+        console.warn(`[stream] Anthropic overloaded in-stream (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${Math.round(delay)}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      console.error("[stream] Anthropic overloaded after all retries");
+      // Return error stream
+      return new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Anthropic API is temporarily overloaded. Please retry in a few minutes." })}\n\n`));
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        },
+      });
+    }
+
+    // Success — replay collected events as a stream
+    let chunkCount = 0;
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const line of collectedEvents) {
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === "[DONE]") continue;
+          try {
+            const event = JSON.parse(jsonStr);
+            if (event.type === "content_block_delta" && event.delta?.text) {
+              chunkCount++;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
+            } else if (event.type === "message_start" && event.message) {
+              console.log("[stream] message_start — model:", event.message.model);
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ meta: { model: event.message.model } })}\n\n`));
+            } else if (event.type === "message_delta" && event.usage) {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ usage: event.usage })}\n\n`));
+            }
+          } catch {
+            console.warn("[stream] Unparseable SSE line:", line.slice(0, 100));
+          }
+        }
+        console.log(`[stream] Replayed ${chunkCount} text chunks`);
+        controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+        controller.close();
+      },
+    });
+  }
+
+  throw new Error("Anthropic API failed after all retries");
 }
 
 // ============================================================================
