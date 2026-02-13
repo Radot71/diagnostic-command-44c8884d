@@ -1,23 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Check, Building2, DollarSign, BarChart3, Shield, AlertTriangle, FileCheck, Briefcase } from 'lucide-react';
+import { ChevronRight, Check, Building2, DollarSign, BarChart3, Shield, AlertTriangle, FileCheck, Briefcase, Loader2, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { useDiagnostic } from '@/lib/diagnosticContext';
 import { signalOptions, situationTypes } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
-import { generateAIReport } from '@/lib/aiAnalysis';
 import { saveReport } from '@/lib/reportPersistence';
 import { TierSelection } from '@/components/intake/TierSelection';
 import { GovernancePillars } from '@/components/report/GovernancePillars';
 import { DealEconomicsForm, isDealEconomicsComplete, getDealEconomicsErrors } from '@/components/intake/DealEconomicsForm';
 import { PreComputeGate } from '@/components/intake/PreComputeGate';
 import { preComputeAndValidate, IntakeConflict } from '@/lib/preComputeValidation';
+import { startDiagnosticJob, pollUntilDone, cancelJob, ProgressUpdate } from '@/lib/jobQueue';
 import { MacroSensitivity, TimeHorizonMonths } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -97,6 +98,8 @@ export default function DiagnosticIntake() {
   };
 
   const [isRunning, setIsRunning] = useState(false);
+  const [jobProgress, setJobProgress] = useState<ProgressUpdate | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   /** Computed runway for display */
   const computedRunway = (() => {
@@ -145,10 +148,31 @@ export default function DiagnosticIntake() {
 
   const runDiagnosticWithNormalized = async (normalizedIntake: object) => {
     setIsRunning(true);
+    setJobProgress(null);
+    setActiveJobId(null);
     try {
-      toast.info('Generating AI analysis...', { duration: 10000 });
-      const aiReport = await generateAIReport(wizardData, 'rapid', outputConfig.tier, normalizedIntake);
-      const validatedReport = await runValidation(aiReport);
+      toast.info('Starting diagnostic job...', { duration: 5000 });
+
+      // 1. Start job (returns in <200ms)
+      const jobId = await startDiagnosticJob({
+        wizardData,
+        outputMode: 'rapid',
+        tier: outputConfig.tier,
+        normalizedIntake,
+      });
+      setActiveJobId(jobId);
+
+      // 2. Poll until complete
+      const result = await pollUntilDone(jobId, (update) => {
+        setJobProgress(update);
+      });
+
+      // 3. Process result
+      const report = result.report;
+      if (report.provenance) {
+        report.provenance = result.provenance || report.provenance;
+      }
+      const validatedReport = await runValidation(report);
       setReport(validatedReport);
       setReportSource('claude');
       setOutputConfig({ mode: 'rapid', strictMode: true, tier: outputConfig.tier });
@@ -176,6 +200,8 @@ export default function DiagnosticIntake() {
       );
     } finally {
       setIsRunning(false);
+      setJobProgress(null);
+      setActiveJobId(null);
     }
   };
 
@@ -746,9 +772,40 @@ export default function DiagnosticIntake() {
                   <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               ) : isRunning ? (
-                <Button disabled>
-                  <span className="animate-pulse">Running Diagnostic...</span>
-                </Button>
+                <div className="flex flex-col items-end gap-2 w-full max-w-sm">
+                  {jobProgress && (
+                    <div className="w-full space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span className="capitalize">{jobProgress.stage.replace('-', ' ')}</span>
+                        <span>{jobProgress.pct}%</span>
+                      </div>
+                      <Progress value={jobProgress.pct} className="h-2" />
+                      <p className="text-xs text-muted-foreground truncate">{jobProgress.message}</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button disabled>
+                      <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                      Running Diagnostic...
+                    </Button>
+                    {activeJobId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          cancelJob(activeJobId);
+                          setIsRunning(false);
+                          setJobProgress(null);
+                          setActiveJobId(null);
+                          toast.info('Job cancelled');
+                        }}
+                      >
+                        <XCircle className="w-4 h-4 mr-1" />
+                        Cancel
+                      </Button>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <Button
                   onClick={handleRunDiagnostic}

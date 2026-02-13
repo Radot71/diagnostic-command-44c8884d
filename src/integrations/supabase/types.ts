@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      diagnostic_jobs: {
+        Row: {
+          ai_status: string | null
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          fail_reason: string | null
+          id: string
+          last_event: string
+          model_used: string | null
+          normalized_intake: Json | null
+          output_mode: string
+          progress_pct: number
+          provenance: Json | null
+          report_json: Json | null
+          simulate_overload: boolean
+          started_at: string | null
+          status: string
+          tier: string
+          updated_at: string
+          wizard_data: Json
+        }
+        Insert: {
+          ai_status?: string | null
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          fail_reason?: string | null
+          id?: string
+          last_event?: string
+          model_used?: string | null
+          normalized_intake?: Json | null
+          output_mode?: string
+          progress_pct?: number
+          provenance?: Json | null
+          report_json?: Json | null
+          simulate_overload?: boolean
+          started_at?: string | null
+          status?: string
+          tier?: string
+          updated_at?: string
+          wizard_data: Json
+        }
+        Update: {
+          ai_status?: string | null
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          fail_reason?: string | null
+          id?: string
+          last_event?: string
+          model_used?: string | null
+          normalized_intake?: Json | null
+          output_mode?: string
+          progress_pct?: number
+          provenance?: Json | null
+          report_json?: Json | null
+          simulate_overload?: boolean
+          started_at?: string | null
+          status?: string
+          tier?: string
+          updated_at?: string
+          wizard_data?: Json
+        }
+        Relationships: []
+      }
       diagnostic_runs: {
         Row: {
           company_name: string | null
