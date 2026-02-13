@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { EnterpriseLayout, PageHeader, PageContent } from '@/components/layout/EnterpriseLayout';
 import { TransparencyBanner } from '@/components/layout/TransparencyBanner';
@@ -26,6 +27,7 @@ import { useDiagnostic } from '@/lib/diagnosticContext';
 import { generateMockReport, situations } from '@/lib/mockData';
 import { runValidation } from '@/lib/validationRunner';
 import { generateAIReport } from '@/lib/aiAnalysis';
+import { startDiagnosticJob, pollUntilDone, cancelJob, ProgressUpdate } from '@/lib/jobQueue';
 import { generateReportPdf, generateDeckPdf } from '@/lib/pdfExport';
 import { preComputeAndValidate } from '@/lib/preComputeValidation';
 import { saveReport, loadReport } from '@/lib/reportPersistence';
@@ -320,6 +322,8 @@ export default function LiveRunHarness() {
   const [qaGates, setQaGates] = useState<QAGate[]>([]);
   const [runMode, setRunMode] = useState<'normal' | 'overload-sim'>('normal');
   const [provenance, setProvenance] = useState<ReportProvenance | null>(null);
+  const [jobProgress, setJobProgress] = useState<ProgressUpdate | null>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   // Get selected test pack data
   const activeData = useMemo(() => {
@@ -409,14 +413,32 @@ export default function LiveRunHarness() {
         return;
       }
 
-      // Step 2: Run diagnostic engine with FULL tier
+      // Step 2: Run diagnostic engine via job queue
       let generatedPacket: DiagnosticReport;
       let usedClaude = false;
       let model: string | null = null;
       let reportProvenance: ReportProvenance | undefined;
 
       try {
-        const aiReport = await generateAIReport(activeData, 'full', 'full', preCompute.normalized || undefined, overloadSim);
+        // Start job
+        const jobId = await startDiagnosticJob({
+          wizardData: activeData,
+          outputMode: 'full',
+          tier: 'full',
+          normalizedIntake: preCompute.normalized || undefined,
+          simulateOverload: overloadSim,
+        });
+        setActiveJobId(jobId);
+
+        // Poll until done
+        const result = await pollUntilDone(jobId, (update) => {
+          setJobProgress(update);
+        });
+
+        const aiReport = result.report;
+        if (result.provenance) {
+          aiReport.provenance = result.provenance;
+        }
         generatedPacket = await runValidation(aiReport);
         reportProvenance = generatedPacket.provenance;
         
@@ -443,6 +465,9 @@ export default function LiveRunHarness() {
         baseReport.provenance = reportProvenance;
         generatedPacket = await runValidation(baseReport);
         setClaudeStatus('failed');
+      } finally {
+        setActiveJobId(null);
+        setJobProgress(null);
       }
 
       setPacket(generatedPacket);
@@ -967,6 +992,22 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
           </Card>
 
           {/* Run Buttons */}
+          {/* Job Progress */}
+          {isRunning && jobProgress && (
+            <Card>
+              <CardContent className="pt-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium capitalize">{jobProgress.stage.replace('-', ' ')}</span>
+                    <span className="text-muted-foreground">{jobProgress.pct}%</span>
+                  </div>
+                  <Progress value={jobProgress.pct} className="h-2" />
+                  <p className="text-xs text-muted-foreground">{jobProgress.message}</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="flex justify-center gap-3 flex-wrap">
             <Button 
               size="lg" 
@@ -1005,6 +1046,23 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                 </>
               )}
             </Button>
+            {isRunning && activeJobId && (
+              <Button
+                size="lg"
+                variant="destructive"
+                onClick={() => {
+                  cancelJob(activeJobId);
+                  setIsRunning(false);
+                  setJobProgress(null);
+                  setActiveJobId(null);
+                  toast.info('Job cancelled');
+                }}
+                className="gap-2 px-6"
+              >
+                <Ban className="w-5 h-5" />
+                Cancel Run
+              </Button>
+            )}
           </div>
 
           {/* QA Gates */}
