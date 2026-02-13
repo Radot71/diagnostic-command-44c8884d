@@ -316,10 +316,21 @@ export interface SelfTest {
   singleMitigation: string;
 }
 
+/** Provenance disclosure — always present on every report */
+export interface ReportProvenance {
+  ai_status: 'STREAM_OK' | 'STREAM_FAIL_FALLBACK' | 'NON_STREAM_OK' | 'DETERMINISTIC_ONLY';
+  model_used: string;
+  retry_count: number;
+  fail_reason: string;
+  timestamp: string;
+  tier: string;
+}
+
 export interface DiagnosticReport {
   id: string;
   generatedAt: string;
   outputMode: OutputMode;
+  provenance?: ReportProvenance;
   integrity: IntegrityMetrics;
   sections: {
     executiveBrief: string;

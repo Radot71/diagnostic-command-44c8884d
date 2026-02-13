@@ -1,4 +1,4 @@
-import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier, GCASAssessment, CausalImpactRow, SegmentBreakdown, CourseCorrection, CheckpointGate, PortfolioRecommendation, FinancingLeverage, ValueLedgerSummary, CriticalPrecondition, GovernorDecision, SelfTest } from './types';
+import { WizardData, DiagnosticReport, OutputMode, DiagnosticTier, GCASAssessment, CausalImpactRow, SegmentBreakdown, CourseCorrection, CheckpointGate, PortfolioRecommendation, FinancingLeverage, ValueLedgerSummary, CriticalPrecondition, GovernorDecision, SelfTest, ReportProvenance } from './types';
 
 interface AnalysisResult {
   executiveBrief: string;
@@ -35,18 +35,20 @@ interface AnalysisResult {
     missingData: string[];
   };
 }
+// ReportProvenance imported from types.ts
 
 /**
  * Read SSE stream from the edge function and assemble the full text response.
- * Returns the accumulated text content and optional model/usage metadata.
+ * Now also captures provenance metadata.
  */
-async function readStream(response: Response): Promise<{ text: string; model?: string; usage?: Record<string, unknown> }> {
+async function readStream(response: Response): Promise<{ text: string; model?: string; usage?: Record<string, unknown>; provenance?: ReportProvenance }> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let fullText = "";
   let model: string | undefined;
   let usage: Record<string, unknown> | undefined;
+  let provenance: ReportProvenance | undefined;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -66,7 +68,13 @@ async function readStream(response: Response): Promise<{ text: string; model?: s
         // Check for error events forwarded from the edge function
         if (parsed.error) {
           console.error('[readStream] Server error:', parsed.error);
-          throw new Error(`Analysis engine error: ${parsed.error}`);
+          // If we have provenance, attach it to the error so caller can use it
+          const err = new Error(`Analysis engine error: ${parsed.error}`);
+          (err as any).provenance = provenance;
+          throw err;
+        }
+        if (parsed.provenance) {
+          provenance = parsed.provenance;
         }
         if (parsed.text) {
           fullText += parsed.text;
@@ -84,23 +92,49 @@ async function readStream(response: Response): Promise<{ text: string; model?: s
     }
   }
 
-  return { text: fullText, model, usage };
+  return { text: fullText, model, usage, provenance };
 }
 
 /**
  * Parse a JSON string from Claude's response, handling code-fenced and raw JSON.
  */
 function parseAnalysisJson(content: string): AnalysisResult {
-  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
-  const jsonString = jsonMatch ? jsonMatch[1] : content;
-  return JSON.parse(jsonString);
+  // Step 1: Remove markdown code blocks
+  let cleaned = content
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  // Step 2: Find JSON boundaries
+  const jsonStart = cleaned.search(/[\{\[]/);
+  const jsonEnd = cleaned.lastIndexOf(jsonStart !== -1 && cleaned[jsonStart] === '[' ? ']' : '}');
+
+  if (jsonStart === -1 || jsonEnd === -1) {
+    throw new Error("No JSON object found in response");
+  }
+
+  cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+
+  // Step 3: Attempt parse
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Step 4: Try to fix common issues
+    cleaned = cleaned
+      .replace(/,\s*}/g, "}") // Remove trailing commas
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, ""); // Remove control characters
+
+    return JSON.parse(cleaned);
+  }
 }
 
 export async function generateAIReport(
   wizardData: WizardData, 
   outputMode: OutputMode,
   tier: DiagnosticTier = 'full',
-  normalizedIntake?: object
+  normalizedIntake?: object,
+  simulateOverload?: boolean
 ): Promise<DiagnosticReport> {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -111,11 +145,10 @@ export async function generateAIReport(
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_KEY}`,
     },
-    body: JSON.stringify({ wizardData, outputMode, tier, normalizedIntake }),
+    body: JSON.stringify({ wizardData, outputMode, tier, normalizedIntake, simulateOverload }),
   });
 
   if (!response.ok) {
-    // Non-streaming error responses come as JSON
     const errorData = await response.json().catch(() => ({ error: 'Network error' }));
     throw new Error(errorData.error || `Analysis failed with status ${response.status}`);
   }
@@ -123,21 +156,27 @@ export async function generateAIReport(
   const contentType = response.headers.get('content-type') || '';
 
   let analysis: AnalysisResult;
+  let provenance: ReportProvenance | undefined;
 
   if (contentType.includes('text/event-stream')) {
-    // Streaming response — collect all chunks
-    const { text } = await readStream(response);
-    if (!text) {
-      throw new Error('Empty response from analysis engine');
+    const streamResult = await readStream(response);
+    provenance = streamResult.provenance;
+    
+    if (!streamResult.text) {
+      // AI failed but we have provenance — throw with provenance attached
+      const err = new Error('Empty response from analysis engine');
+      (err as any).provenance = provenance;
+      throw err;
     }
     try {
-      analysis = parseAnalysisJson(text);
+      analysis = parseAnalysisJson(streamResult.text);
     } catch (parseError) {
       console.error('Failed to parse streamed response as JSON:', parseError);
-      throw new Error('Analysis completed but response could not be parsed. Please retry.');
+      const err = new Error('Analysis completed but response could not be parsed. Please retry.');
+      (err as any).provenance = provenance;
+      throw err;
     }
   } else {
-    // Legacy non-streaming JSON response (fallback)
     const data = await response.json();
     if (!data.success || !data.analysis) {
       throw new Error(data.error || 'Failed to generate analysis');
@@ -149,6 +188,14 @@ export async function generateAIReport(
     id: `RPT-${Date.now()}`,
     generatedAt: new Date().toISOString(),
     outputMode,
+    provenance: provenance || {
+      ai_status: 'STREAM_OK',
+      model_used: 'unknown',
+      retry_count: 0,
+      fail_reason: 'none',
+      timestamp: new Date().toISOString(),
+      tier: tier.toUpperCase(),
+    },
     integrity: {
       completeness: analysis.integrity.completeness,
       evidenceQuality: analysis.integrity.evidenceQuality,
