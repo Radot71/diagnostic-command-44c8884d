@@ -67,6 +67,49 @@ function sanitizeApiKey(raw: string): string {
 }
 
 // ============================================================================
+// Provenance tracking
+// ============================================================================
+
+interface Provenance {
+  ai_status: 'STREAM_OK' | 'STREAM_FAIL_FALLBACK' | 'NON_STREAM_OK' | 'DETERMINISTIC_ONLY';
+  model_used: string;
+  retry_count: number;
+  fail_reason: string;
+  timestamp: string;
+  tier: string;
+}
+
+// ============================================================================
+// Circuit Breaker — in-memory, resets on cold start
+// ============================================================================
+
+interface CircuitState {
+  failures: number[];
+  openUntil: number;
+}
+
+const circuitBreaker: CircuitState = { failures: [], openUntil: 0 };
+const CIRCUIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const CIRCUIT_THRESHOLD = 3;
+const CIRCUIT_OPEN_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
+function recordFailure(): void {
+  const now = Date.now();
+  circuitBreaker.failures.push(now);
+  // Prune old
+  circuitBreaker.failures = circuitBreaker.failures.filter(t => now - t < CIRCUIT_WINDOW_MS);
+  if (circuitBreaker.failures.length >= CIRCUIT_THRESHOLD) {
+    circuitBreaker.openUntil = now + CIRCUIT_OPEN_DURATION_MS;
+    console.warn(`[circuit] OPEN — ${circuitBreaker.failures.length} failures in window. Open until ${new Date(circuitBreaker.openUntil).toISOString()}`);
+  }
+}
+
+function isCircuitOpen(): boolean {
+  if (Date.now() < circuitBreaker.openUntil) return true;
+  return false;
+}
+
+// ============================================================================
 // Deterministic Pre-Computation — all derived values computed here, not by LLM
 // ============================================================================
 
@@ -100,7 +143,6 @@ function computeDeterministicValues(wizardData: WizardData): DeterministicValues
   const usRevenuePct = de ? parseFloat(de.usRevenuePct || '') : NaN;
   const exportExposurePct = de ? parseFloat(de.exportExposurePct || '') : NaN;
 
-  // Deterministic formulas — MUST match exactly
   const debt = (!isNaN(ev) && !isNaN(equity)) ? ev - equity : NaN;
   const runway = (!isNaN(cash) && !isNaN(burn) && burn > 0) ? cash / burn : NaN;
   const entryMultiple = (!isNaN(ev) && !isNaN(ebitda) && ebitda > 0) ? ev / ebitda : NaN;
@@ -222,16 +264,45 @@ Please provide your analysis as a JSON object with the sections specified in the
 }
 
 // ============================================================================
-// Streaming: read Anthropic SSE and forward text deltas to client
+// Model Router — ordered failover with tier-appropriate limits
 // ============================================================================
 
-async function callAnthropicWithRetry(
+interface ModelAttempt {
+  model: string;
+  streaming: boolean;
+  maxTokens: number;
+}
+
+function getModelChain(tier: string, baseMaxTokens: number): ModelAttempt[] {
+  return [
+    { model: 'claude-sonnet-4-20250514', streaming: true, maxTokens: baseMaxTokens },
+    { model: 'claude-3-5-sonnet-20241022', streaming: true, maxTokens: baseMaxTokens },
+    { model: 'claude-sonnet-4-20250514', streaming: false, maxTokens: Math.min(baseMaxTokens, tier === 'prospect' ? 4096 : tier === 'executive' ? 8192 : 16384) },
+  ];
+}
+
+function getTierTimeout(tier: string): number {
+  switch (tier) {
+    case 'prospect': return 25000;
+    case 'executive': return 45000;
+    default: return 90000;
+  }
+}
+
+// ============================================================================
+// Anthropic call with retry
+// ============================================================================
+
+async function callAnthropicRaw(
   apiKey: string,
+  model: string,
   systemPrompt: string,
   userPrompt: string,
   maxTokens: number,
+  streaming: boolean,
   maxRetries = 3,
-): Promise<Response> {
+): Promise<{ response: Response; retryCount: number }> {
+  let retryCount = 0;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -241,133 +312,187 @@ async function callAnthropicWithRetry(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model,
         max_tokens: maxTokens,
-        stream: true,
+        stream: streaming,
         messages: [{ role: "user", content: userPrompt }],
         system: systemPrompt,
       }),
     });
 
-    if (res.ok) return res;
+    if (res.ok) return { response: res, retryCount };
 
     const errorText = await res.text();
     const isOverloaded = res.status === 529 || res.status === 503 || errorText.includes("Overloaded");
     
     if (isOverloaded && attempt < maxRetries - 1) {
+      retryCount++;
       const delay = Math.pow(2, attempt) * 2000 + Math.random() * 1000;
-      console.warn(`[retry] Anthropic overloaded (attempt ${attempt + 1}/${maxRetries}), retrying in ${Math.round(delay)}ms`);
+      console.warn(`[retry] ${model} overloaded (attempt ${attempt + 1}/${maxRetries}), retrying in ${Math.round(delay)}ms`);
       await new Promise(r => setTimeout(r, delay));
       continue;
     }
 
-    console.error("Anthropic API error:", res.status, errorText);
-    throw new Error(`Anthropic API error [${res.status}]`);
+    if (isOverloaded) {
+      recordFailure();
+    }
+
+    throw new Error(`Anthropic API error [${res.status}]: ${model}`);
   }
-  throw new Error("Anthropic API failed after retries");
+  throw new Error(`Anthropic API failed after retries: ${model}`);
 }
 
-async function streamAnthropicResponse(
+// ============================================================================
+// Parse non-streaming response
+// ============================================================================
+
+function parseNonStreamingResponse(data: { content: Array<{ type: string; text?: string }>; model: string }): { text: string; model: string } {
+  const textBlocks = data.content.filter((b: { type: string }) => b.type === 'text');
+  const text = textBlocks.map((b: { text?: string }) => b.text || '').join('');
+  return { text, model: data.model };
+}
+
+// ============================================================================
+// Process streaming response — collect and replay
+// ============================================================================
+
+async function processStreamingResponse(
+  res: Response,
+): Promise<{ text: string; model: string; hasOverload: boolean }> {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+  let model = "";
+  let hasOverload = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr || jsonStr === "[DONE]") continue;
+      try {
+        const event = JSON.parse(jsonStr);
+        if (event.type === "error") {
+          const errMsg = event.error?.message || JSON.stringify(event.error) || "";
+          if (errMsg.toLowerCase().includes("overloaded")) {
+            hasOverload = true;
+            break;
+          }
+        }
+        if (event.type === "content_block_delta" && event.delta?.text) {
+          fullText += event.delta.text;
+        }
+        if (event.type === "message_start" && event.message?.model) {
+          model = event.message.model;
+        }
+      } catch { /* skip */ }
+    }
+    if (hasOverload) break;
+  }
+
+  return { text: fullText, model, hasOverload };
+}
+
+// ============================================================================
+// Main model router — tries chain, returns text + provenance
+// ============================================================================
+
+async function routeModelCall(
   apiKey: string,
   systemPrompt: string,
   userPrompt: string,
-  maxTokens: number,
-): Promise<ReadableStream<Uint8Array>> {
-  const encoder = new TextEncoder();
-  const MAX_RETRIES = 3;
+  tier: string,
+  baseMaxTokens: number,
+): Promise<{ text: string; provenance: Provenance }> {
+  const chain = getModelChain(tier, baseMaxTokens);
+  const wallClockLimit = getTierTimeout(tier);
+  const startTime = Date.now();
+  let totalRetries = 0;
+  let lastError = '';
 
-  // Try to get a successful stream, retrying on overloaded errors
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const anthropicRes = await callAnthropicWithRetry(apiKey, systemPrompt, userPrompt, maxTokens);
-    
-    // Read the entire response to check for in-stream errors before forwarding
-    const reader = anthropicRes.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    const collectedEvents: string[] = [];
-    let hasOverloadError = false;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr && jsonStr !== "[DONE]") {
-            try {
-              const event = JSON.parse(jsonStr);
-              if (event.type === "error") {
-                const errMsg = event.error?.message || JSON.stringify(event.error) || "";
-                if (errMsg.toLowerCase().includes("overloaded")) {
-                  hasOverloadError = true;
-                  break;
-                }
-              }
-            } catch { /* skip */ }
-          }
-          collectedEvents.push(line);
-        } else if (line.startsWith("event: ")) {
-          // Skip event type lines but check for errors
-          const eventType = line.slice(7).trim();
-          if (eventType === "error") {
-            // Next data line may contain overloaded info
-          }
-        }
-      }
-      if (hasOverloadError) break;
+  for (const attempt of chain) {
+    if (Date.now() - startTime > wallClockLimit) {
+      console.warn(`[router] Wall-clock limit (${wallClockLimit}ms) exceeded, stopping model attempts`);
+      break;
     }
 
-    if (hasOverloadError) {
-      if (attempt < MAX_RETRIES - 1) {
-        const delay = Math.pow(2, attempt) * 3000 + Math.random() * 2000;
-        console.warn(`[stream] Anthropic overloaded in-stream (attempt ${attempt + 1}/${MAX_RETRIES}), retrying in ${Math.round(delay)}ms`);
-        await new Promise(r => setTimeout(r, delay));
-        continue;
-      }
-      console.error("[stream] Anthropic overloaded after all retries");
-      // Return error stream
-      return new ReadableStream<Uint8Array>({
-        start(controller) {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "Anthropic API is temporarily overloaded. Please retry in a few minutes." })}\n\n`));
-          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-          controller.close();
-        },
-      });
-    }
+    try {
+      console.log(`[router] Trying ${attempt.model} (streaming=${attempt.streaming}, maxTokens=${attempt.maxTokens})`);
+      
+      const { response, retryCount } = await callAnthropicRaw(
+        apiKey, attempt.model, systemPrompt, userPrompt, attempt.maxTokens, attempt.streaming,
+      );
+      totalRetries += retryCount;
 
-    // Success — replay collected events as a stream
-    let chunkCount = 0;
-    return new ReadableStream<Uint8Array>({
-      start(controller) {
-        for (const line of collectedEvents) {
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr || jsonStr === "[DONE]") continue;
-          try {
-            const event = JSON.parse(jsonStr);
-            if (event.type === "content_block_delta" && event.delta?.text) {
-              chunkCount++;
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
-            } else if (event.type === "message_start" && event.message) {
-              console.log("[stream] message_start — model:", event.message.model);
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ meta: { model: event.message.model } })}\n\n`));
-            } else if (event.type === "message_delta" && event.usage) {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ usage: event.usage })}\n\n`));
-            }
-          } catch {
-            console.warn("[stream] Unparseable SSE line:", line.slice(0, 100));
-          }
+      if (attempt.streaming) {
+        const result = await processStreamingResponse(response);
+        if (result.hasOverload) {
+          recordFailure();
+          lastError = `${attempt.model} overloaded in-stream`;
+          console.warn(`[router] ${lastError}`);
+          continue;
         }
-        console.log(`[stream] Replayed ${chunkCount} text chunks`);
-        controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
-        controller.close();
-      },
-    });
+        if (!result.text) {
+          lastError = `${attempt.model} returned empty text`;
+          continue;
+        }
+        return {
+          text: result.text,
+          provenance: {
+            ai_status: 'STREAM_OK',
+            model_used: result.model || attempt.model,
+            retry_count: totalRetries,
+            fail_reason: 'none',
+            timestamp: new Date().toISOString(),
+            tier: tier.toUpperCase(),
+          },
+        };
+      } else {
+        // Non-streaming
+        const data = await response.json();
+        const result = parseNonStreamingResponse(data);
+        if (!result.text) {
+          lastError = `${attempt.model} non-streaming returned empty`;
+          continue;
+        }
+        return {
+          text: result.text,
+          provenance: {
+            ai_status: 'NON_STREAM_OK',
+            model_used: result.model || attempt.model,
+            retry_count: totalRetries,
+            fail_reason: 'none',
+            timestamp: new Date().toISOString(),
+            tier: tier.toUpperCase(),
+          },
+        };
+      }
+    } catch (err) {
+      totalRetries++;
+      lastError = err instanceof Error ? err.message : String(err);
+      console.warn(`[router] ${attempt.model} failed: ${lastError}`);
+      continue;
+    }
   }
 
-  throw new Error("Anthropic API failed after all retries");
+  // All attempts failed — return deterministic-only signal
+  return {
+    text: '',
+    provenance: {
+      ai_status: 'DETERMINISTIC_ONLY',
+      model_used: 'none',
+      retry_count: totalRetries,
+      fail_reason: lastError || 'All model attempts exhausted',
+      timestamp: new Date().toISOString(),
+      tier: tier.toUpperCase(),
+    },
+  };
 }
 
 // ============================================================================
@@ -394,11 +519,12 @@ serve(async (req) => {
 
     const ANTHROPIC_API_KEY = sanitizeApiKey(rawKey);
 
-    const { wizardData, outputMode, tier = "full", normalizedIntake } = (await req.json()) as {
+    const { wizardData, outputMode, tier = "full", normalizedIntake, simulateOverload } = (await req.json()) as {
       wizardData: WizardData;
       outputMode: string;
       tier?: string;
       normalizedIntake?: Record<string, unknown>;
+      simulateOverload?: boolean;
     };
 
     if (!wizardData) {
@@ -409,7 +535,6 @@ serve(async (req) => {
     }
 
     // If normalizedIntake is provided, inject its values into wizardData for prompt building
-    // This ensures the edge function uses pre-validated, pre-computed values
     if (normalizedIntake) {
       const obs = normalizedIntake.observed as Record<string, unknown> | undefined;
       if (obs && wizardData.dealEconomics) {
@@ -428,10 +553,85 @@ serve(async (req) => {
     const systemPrompt = getSystemPrompt(tier);
     const maxTokens = getMaxTokens(tier);
     const userPrompt = buildUserPrompt(wizardData, tier);
+    const encoder = new TextEncoder();
 
-    console.log(`Calling Anthropic API (streaming) — tier: ${tier}, max_tokens: ${maxTokens}, normalizedIntake: ${normalizedIntake ? 'yes' : 'no'}`);
+    // ---- Simulate overload for testing ----
+    if (simulateOverload) {
+      console.log("[router] simulateOverload=true — returning DETERMINISTIC_ONLY");
+      const provenance: Provenance = {
+        ai_status: 'DETERMINISTIC_ONLY',
+        model_used: 'none',
+        retry_count: 0,
+        fail_reason: 'Simulated overload for testing',
+        timestamp: new Date().toISOString(),
+        tier: tier.toUpperCase(),
+      };
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ provenance })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "SIMULATED_OVERLOAD: All models unavailable" })}\n\n`));
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" },
+      });
+    }
 
-    const stream = await streamAnthropicResponse(ANTHROPIC_API_KEY, systemPrompt, userPrompt, maxTokens);
+    // ---- Check circuit breaker ----
+    if (isCircuitOpen()) {
+      console.warn("[router] Circuit OPEN — returning DETERMINISTIC_ONLY");
+      const provenance: Provenance = {
+        ai_status: 'DETERMINISTIC_ONLY',
+        model_used: 'none',
+        retry_count: 0,
+        fail_reason: 'Circuit breaker OPEN — too many recent failures',
+        timestamp: new Date().toISOString(),
+        tier: tier.toUpperCase(),
+      };
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ provenance })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: "CIRCUIT_OPEN: Model calls temporarily suspended due to repeated failures" })}\n\n`));
+          controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+          controller.close();
+        },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" },
+      });
+    }
+
+    console.log(`[router] Starting model chain — tier: ${tier}, max_tokens: ${maxTokens}, normalizedIntake: ${normalizedIntake ? 'yes' : 'no'}`);
+
+    const { text, provenance } = await routeModelCall(ANTHROPIC_API_KEY, systemPrompt, userPrompt, tier, maxTokens);
+
+    // Build SSE stream with provenance + text (or error)
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        // Always emit provenance first
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ provenance })}\n\n`));
+
+        if (text) {
+          // Emit model metadata
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ meta: { model: provenance.model_used } })}\n\n`));
+          // Chunk text into SSE events (simulate streaming for non-stream responses)
+          const chunkSize = 200;
+          for (let i = 0; i < text.length; i += chunkSize) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: text.slice(i, i + chunkSize) })}\n\n`));
+          }
+        } else {
+          // All models failed
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `All model attempts failed: ${provenance.fail_reason}` })}\n\n`));
+        }
+
+        controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
+        controller.close();
+      },
+    });
 
     return new Response(stream, {
       status: 200,

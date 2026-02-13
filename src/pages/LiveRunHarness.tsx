@@ -13,7 +13,9 @@ import {
   Info,
   Shield,
   Activity,
-  Zap
+  Zap,
+  Ban,
+  FlaskConical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +29,7 @@ import { generateAIReport } from '@/lib/aiAnalysis';
 import { generateReportPdf, generateDeckPdf } from '@/lib/pdfExport';
 import { preComputeAndValidate } from '@/lib/preComputeValidation';
 import { saveReport, loadReport } from '@/lib/reportPersistence';
-import { TIER_CONFIGURATIONS, DiagnosticTier, WizardData, DiagnosticReport, DEFAULT_DEAL_ECONOMICS, DEFAULT_OPERATING_METRICS } from '@/lib/types';
+import { TIER_CONFIGURATIONS, DiagnosticTier, WizardData, DiagnosticReport, DEFAULT_DEAL_ECONOMICS, DEFAULT_OPERATING_METRICS, ReportProvenance } from '@/lib/types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
@@ -43,13 +45,75 @@ interface TestPack {
   name: string;
   description: string;
   data: WizardData;
+  /** If true, this pack is expected to FAIL Gate 1 */
+  expectGate1Fail?: boolean;
 }
 
 const TEST_PACKS: TestPack[] = [
+  // ---- KnownGood: deterministic-first, no stated debt, clean data ----
+  {
+    id: 'known-good',
+    name: '✅ KnownGood — Clean Deterministic',
+    description: 'All fields valid, no stated debt (computed as EV-Equity). Should PASS all gates.',
+    data: {
+      situation: situations.find(s => s.id === 'acquisition-diligence')!,
+      companyBasics: {
+        companyName: 'Precision Components Co.',
+        industry: 'Precision Manufacturing',
+        revenue: '$120M',
+        employees: '350',
+        founded: '2005',
+      },
+      runwayInputs: {
+        cashOnHand: '5',
+        monthlyBurn: '1',
+        hasDebt: false,
+        debtAmount: '',
+        debtMaturity: '',
+      },
+      signalChecklist: {
+        signals: ['Liquidity pressure', 'Margin compression', 'Refinancing risk'],
+        notes: 'Reference test case for end-to-end verification.',
+      },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'add-on', enterpriseValue: '120', equityCheck: '45', entryEbitda: '26.7', ebitdaMargin: '12', usRevenuePct: '80', exportExposurePct: '10', macroSensitivities: ['rising-rates', 'pmi-contraction', 'supply-chain-risk'], timeHorizonMonths: 36 },
+      operatingMetrics: { ...DEFAULT_OPERATING_METRICS },
+    },
+  },
+  // ---- KnownBad: intentional conflicts to prove Gate 1 blocks ----
+  {
+    id: 'known-bad',
+    name: '❌ KnownBad — Intentional Conflicts',
+    description: 'Stated debt ($42M) contradicts EV-Equity ($150M). Equity > EV on second pair. Should FAIL Gate 1.',
+    expectGate1Fail: true,
+    data: {
+      situation: situations.find(s => s.id === 'liquidity-crisis')!,
+      companyBasics: {
+        companyName: 'BadData Industries',
+        industry: 'Testing',
+        revenue: '$100M',
+        employees: '200',
+        founded: '2000',
+      },
+      runwayInputs: {
+        cashOnHand: '2',
+        monthlyBurn: '0.5',
+        hasDebt: true,
+        debtAmount: '42',
+        debtMaturity: '12',
+      },
+      signalChecklist: {
+        signals: ['Liquidity pressure'],
+        notes: 'Intentionally bad data for Gate 1 testing.',
+      },
+      dealEconomics: { ...DEFAULT_DEAL_ECONOMICS, dealType: 'recapitalization', enterpriseValue: '200', equityCheck: '50', entryEbitda: '18', ebitdaMargin: '12', usRevenuePct: '100', exportExposurePct: '0', macroSensitivities: ['rising-rates'], timeHorizonMonths: 18 },
+      operatingMetrics: { ...DEFAULT_OPERATING_METRICS },
+    },
+  },
+  // ---- Existing packs with debt fields cleaned ----
   {
     id: 'liquidity-wall',
     name: 'Liquidity Wall — Crisis',
-    description: 'Severe cash crunch with imminent debt maturity, supplier pressure, and covenant breach risk.',
+    description: 'Severe cash crunch with imminent debt maturity. Debt inferred from EV-Equity.',
     data: {
       situation: situations.find(s => s.id === 'liquidity-crisis')!,
       companyBasics: {
@@ -60,11 +124,11 @@ const TEST_PACKS: TestPack[] = [
         founded: '1992',
       },
       runwayInputs: {
-        cashOnHand: '$3.2M',
-        monthlyBurn: '$1.4M',
+        cashOnHand: '3.2',
+        monthlyBurn: '1.4',
         hasDebt: true,
-        debtAmount: '$42M',
-        debtMaturity: '60 days',
+        debtAmount: '',
+        debtMaturity: '2',
       },
       signalChecklist: {
         signals: ['Liquidity pressure', 'Refinancing risk', 'Covenant risk', 'Supply chain disruption', 'Margin compression'],
@@ -88,11 +152,11 @@ const TEST_PACKS: TestPack[] = [
         founded: '1978',
       },
       runwayInputs: {
-        cashOnHand: '$18M',
-        monthlyBurn: '$850K',
+        cashOnHand: '18',
+        monthlyBurn: '0.85',
         hasDebt: true,
-        debtAmount: '$65M',
-        debtMaturity: '24 months',
+        debtAmount: '',
+        debtMaturity: '24',
       },
       signalChecklist: {
         signals: ['Margin compression', 'Customer concentration', 'Pricing pressure', 'Commodity exposure'],
@@ -116,11 +180,11 @@ const TEST_PACKS: TestPack[] = [
         founded: '2016 (acquired 2023)',
       },
       runwayInputs: {
-        cashOnHand: '$12M',
-        monthlyBurn: '$1.8M',
+        cashOnHand: '12',
+        monthlyBurn: '1.8',
         hasDebt: true,
-        debtAmount: '$38M',
-        debtMaturity: '18 months',
+        debtAmount: '',
+        debtMaturity: '18',
       },
       signalChecklist: {
         signals: ['Leadership churn', 'Customer concentration', 'Integration risk', 'Pricing pressure'],
@@ -177,8 +241,18 @@ function escapeHtml(unsafe: string) {
     .replace(/'/g, '&#039;');
 }
 
-function buildExportHtml(params: { title: string; subtitle?: string; body: string }) {
-  const { title, subtitle, body } = params;
+function buildExportHtml(params: { title: string; subtitle?: string; body: string; provenance?: ReportProvenance }) {
+  const { title, subtitle, body, provenance } = params;
+  const provenanceBlock = provenance ? `
+      <div style="background:#f0f4f8;border:1px solid #c9d3df;border-radius:6px;padding:12px;margin-bottom:16px;font-family:monospace;font-size:12px;line-height:1.6;">
+        <strong>PROVENANCE DISCLOSURE</strong><br/>
+        AI_STATUS: ${provenance.ai_status}<br/>
+        MODEL_USED: ${provenance.model_used}<br/>
+        RETRY_COUNT: ${provenance.retry_count}<br/>
+        FAIL_REASON: ${provenance.fail_reason}<br/>
+        TIMESTAMP: ${provenance.timestamp}<br/>
+        TIER: ${provenance.tier}
+      </div>` : '';
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -197,6 +271,7 @@ function buildExportHtml(params: { title: string; subtitle?: string; body: strin
     <main>
       <h1>${escapeHtml(title)}</h1>
       ${subtitle ? `<p class="sub">${escapeHtml(subtitle)}</p>` : ''}
+      ${provenanceBlock}
       <pre>${escapeHtml(body)}</pre>
       <footer>DiagnosticOS Live Run Harness — Verification Export</footer>
     </main>
@@ -235,7 +310,7 @@ export default function LiveRunHarness() {
   const { wizardData } = useDiagnostic();
   
   // State
-  const [selectedPack, setSelectedPack] = useState<string>('liquidity-wall');
+  const [selectedPack, setSelectedPack] = useState<string>('known-good');
   const [isRunning, setIsRunning] = useState(false);
   const [runComplete, setRunComplete] = useState(false);
   const [packet, setPacket] = useState<DiagnosticReport | null>(null);
@@ -243,6 +318,8 @@ export default function LiveRunHarness() {
   const [claudeModel, setClaudeModel] = useState<string | null>(null);
   const [exportResults, setExportResults] = useState<ExportResult[]>([]);
   const [qaGates, setQaGates] = useState<QAGate[]>([]);
+  const [runMode, setRunMode] = useState<'normal' | 'overload-sim'>('normal');
+  const [provenance, setProvenance] = useState<ReportProvenance | null>(null);
 
   // Get selected test pack data
   const activeData = useMemo(() => {
@@ -252,6 +329,8 @@ export default function LiveRunHarness() {
     return TEST_PACKS.find(p => p.id === selectedPack)?.data || TEST_PACKS[0].data;
   }, [selectedPack, wizardData]);
 
+  const activePack = TEST_PACKS.find(p => p.id === selectedPack);
+
   // Check if custom data is valid
   const isCustomDataValid = wizardData.companyBasics.companyName && wizardData.runwayInputs.cashOnHand;
 
@@ -259,7 +338,7 @@ export default function LiveRunHarness() {
   // Core Run Logic
   // ============================================================================
 
-  const runFullDiagnostic = async () => {
+  const runFullDiagnostic = async (overloadSim = false) => {
     setIsRunning(true);
     setRunComplete(false);
     setPacket(null);
@@ -267,6 +346,8 @@ export default function LiveRunHarness() {
     setClaudeModel(null);
     setExportResults([]);
     setQaGates([]);
+    setProvenance(null);
+    setRunMode(overloadSim ? 'overload-sim' : 'normal');
 
     const gates: QAGate[] = [
       { id: 'pre-compute', name: 'Pre-Compute Validation', description: 'Inputs normalize without blocking errors; deterministic core computed', status: 'pending' },
@@ -274,11 +355,11 @@ export default function LiveRunHarness() {
       { id: 'tier-invariance', name: 'Tier Invariance', description: 'Key metrics identical across all tier renders', status: 'pending' },
       { id: 'gcas-completeness', name: 'GCAS Completeness', description: 'Governor Decision, Critical Preconditions, Value Ledger, Self-Test sections populated', status: 'pending' },
       { id: 'governor-decision', name: 'Governor Decision Logic', description: 'GO/CAUTION/NO-GO decision present with reasoning', status: 'pending' },
-      { id: 'streaming-integrity', name: 'Streaming Integrity', description: 'SSE streaming response received and parsed successfully', status: 'pending' },
+      { id: 'streaming-resilience', name: 'Streaming / Failover Resilience', description: 'Model response received OR fallback worked with correct provenance disclosure', status: 'pending' },
       { id: 'export-completeness', name: 'Export Completeness', description: 'All required exports generated successfully', status: 'pending' },
       { id: 'db-persistence', name: 'Database Persistence', description: 'Report saved and loaded from database successfully', status: 'pending' },
       { id: 'gemini-disabled', name: 'Gemini Disabled', description: 'FEATURE_GEMINI is false, no Gemini invocation', status: 'pending' },
-      { id: 'claude-disclosure', name: 'Claude Disclosure', description: 'Claude status properly disclosed in UI', status: 'pending' },
+      { id: 'claude-disclosure', name: 'Provenance Disclosure', description: 'AI_STATUS + MODEL_USED + RETRY_COUNT present in report', status: 'pending' },
       { id: 'precision-guardrails', name: 'Precision Guardrails', description: 'Low confidence shows ranges; evidence warnings shown', status: 'pending' },
     ];
     setQaGates(gates);
@@ -289,39 +370,83 @@ export default function LiveRunHarness() {
       if (preCompute.hasBlockingErrors) {
         gates[0].status = 'fail';
         gates[0].details = `Blocking errors: ${preCompute.conflicts.filter(c => c.severity === 'error').map(c => c.message).join('; ')}`;
+
+        // If this is a KnownBad pack, failing is expected
+        if (activePack?.expectGate1Fail) {
+          gates[0].details += ' [EXPECTED — KnownBad test pack]';
+        }
       } else {
         gates[0].status = 'pass';
         const warnings = preCompute.conflicts.filter(c => c.severity === 'warning');
         gates[0].details = preCompute.normalized
-          ? `Normalized OK — EV: $${preCompute.normalized.observed.enterpriseValue_m}M, Leverage: ${preCompute.normalized.inferred.entryLeverage_x}x, Runway: ${preCompute.normalized.inferred.runwayMonths}mo${warnings.length > 0 ? ` (${warnings.length} warning(s))` : ''}`
+          ? `Normalized OK — EV: $${preCompute.normalized.observed.enterpriseValue_m}M, Debt: $${preCompute.normalized.inferred.totalDebt_m}M, Leverage: ${preCompute.normalized.inferred.entryLeverage_x}x, Multiple: ${preCompute.normalized.inferred.entryMultiple_x}x, Runway: ${preCompute.normalized.inferred.runwayMonths}mo${warnings.length > 0 ? ` (${warnings.length} warning(s))` : ''}`
           : 'Normalized but no output';
       }
       setQaGates([...gates]);
+
+      // If Gate 1 failed and it's a KnownBad pack, mark remaining gates and stop
+      if (preCompute.hasBlockingErrors && activePack?.expectGate1Fail) {
+        gates.forEach((g, i) => {
+          if (i > 0) {
+            g.status = 'pass';
+            g.details = 'Skipped — KnownBad blocked at Gate 1 as expected';
+          }
+        });
+        setQaGates([...gates]);
+        setRunComplete(true);
+        toast.success('KnownBad test PASSED — Gate 1 correctly blocked bad data');
+        return;
+      }
+
+      // If Gate 1 failed unexpectedly, mark remaining as failed and stop
+      if (preCompute.hasBlockingErrors) {
+        gates.forEach((g, i) => {
+          if (i > 0) g.status = 'fail';
+        });
+        setQaGates([...gates]);
+        setRunComplete(true);
+        toast.error('Gate 1 failed — cannot proceed');
+        return;
+      }
 
       // Step 2: Run diagnostic engine with FULL tier
       let generatedPacket: DiagnosticReport;
       let usedClaude = false;
       let model: string | null = null;
-      let streamingUsed = false;
+      let reportProvenance: ReportProvenance | undefined;
 
       try {
-        // Attempt AI-powered analysis with full tier and normalized intake
-        const aiReport = await generateAIReport(activeData, 'full', 'full', preCompute.normalized || undefined);
+        const aiReport = await generateAIReport(activeData, 'full', 'full', preCompute.normalized || undefined, overloadSim);
         generatedPacket = await runValidation(aiReport);
-        usedClaude = true;
-        streamingUsed = true;
-        model = 'claude-sonnet-4-20250514';
-        setClaudeStatus('success');
-        setClaudeModel(model);
-      } catch (err) {
-        // Claude failed - use deterministic fallback
-        console.warn('[LiveRunHarness] Claude failed, using deterministic fallback:', err);
+        reportProvenance = generatedPacket.provenance;
+        
+        if (reportProvenance?.ai_status === 'DETERMINISTIC_ONLY') {
+          usedClaude = false;
+          setClaudeStatus('failed');
+        } else {
+          usedClaude = true;
+          model = reportProvenance?.model_used || 'claude-sonnet-4-20250514';
+          setClaudeStatus('success');
+          setClaudeModel(model);
+        }
+      } catch (err: any) {
+        console.warn('[LiveRunHarness] AI failed, using deterministic fallback:', err);
+        reportProvenance = err?.provenance || {
+          ai_status: 'DETERMINISTIC_ONLY' as const,
+          model_used: 'none',
+          retry_count: 0,
+          fail_reason: err instanceof Error ? err.message : 'Unknown',
+          timestamp: new Date().toISOString(),
+          tier: 'FULL',
+        };
         const baseReport = generateMockReport(activeData, 'full');
+        baseReport.provenance = reportProvenance;
         generatedPacket = await runValidation(baseReport);
         setClaudeStatus('failed');
       }
 
       setPacket(generatedPacket);
+      setProvenance(reportProvenance || null);
 
       // Gate 2: Packet Integrity
       const hasRequiredKeys = 
@@ -374,11 +499,27 @@ export default function LiveRunHarness() {
         gates[4].details = usedClaude ? 'Governor decision missing from Claude response' : 'Mock fallback — Governor decision not generated';
       }
 
-      // Gate 6: Streaming Integrity
-      gates[5].status = streamingUsed ? 'pass' : (usedClaude ? 'warning' : 'fail');
-      gates[5].details = streamingUsed 
-        ? `SSE stream parsed successfully — Model: ${model}`
-        : usedClaude ? 'Response received but streaming status unknown' : 'Claude failed — no streaming attempted';
+      // Gate 6: Streaming / Failover Resilience
+      const prov = reportProvenance;
+      if (prov) {
+        if (overloadSim) {
+          // For overload sim, we expect DETERMINISTIC_ONLY with proper provenance
+          gates[5].status = prov.ai_status === 'DETERMINISTIC_ONLY' ? 'pass' : 'fail';
+          gates[5].details = `Overload sim: AI_STATUS=${prov.ai_status}, MODEL=${prov.model_used}, FAIL_REASON=${prov.fail_reason}`;
+        } else if (prov.ai_status === 'STREAM_OK' || prov.ai_status === 'NON_STREAM_OK') {
+          gates[5].status = 'pass';
+          gates[5].details = `${prov.ai_status} — Model: ${prov.model_used}, Retries: ${prov.retry_count}`;
+        } else if (prov.ai_status === 'STREAM_FAIL_FALLBACK') {
+          gates[5].status = 'warning';
+          gates[5].details = `Failover used: ${prov.model_used}, Reason: ${prov.fail_reason}`;
+        } else {
+          gates[5].status = 'warning';
+          gates[5].details = `DETERMINISTIC_ONLY — ${prov.fail_reason}. Packet still complete.`;
+        }
+      } else {
+        gates[5].status = 'fail';
+        gates[5].details = 'No provenance metadata received';
+      }
 
       // Gate 7: Generate all exports
       const exports = await generateAllExports(generatedPacket, activeData);
@@ -415,12 +556,17 @@ export default function LiveRunHarness() {
       gates[8].status = 'pass';
       gates[8].details = 'Gemini permanently disabled. Claude Sonnet 4 is the sole LLM provider.';
 
-      // Gate 10: Claude Disclosure
-      const claudeDisclosed = usedClaude || (!usedClaude && generatedPacket);
-      gates[9].status = claudeDisclosed ? 'pass' : 'fail';
-      gates[9].details = usedClaude 
-        ? `Claude narrative generated (additive) — Model: ${model}`
-        : 'Claude narrative unavailable — deterministic packet generated';
+      // Gate 10: Provenance Disclosure
+      if (prov) {
+        const hasAll = prov.ai_status && prov.model_used !== undefined && prov.retry_count !== undefined && prov.fail_reason !== undefined && prov.timestamp && prov.tier;
+        gates[9].status = hasAll ? 'pass' : 'fail';
+        gates[9].details = hasAll
+          ? `AI_STATUS=${prov.ai_status} MODEL=${prov.model_used} RETRIES=${prov.retry_count} TIER=${prov.tier}`
+          : 'Provenance metadata incomplete';
+      } else {
+        gates[9].status = 'fail';
+        gates[9].details = 'No provenance object on report';
+      }
 
       // Gate 11: Precision Guardrails
       const lowConfidence = generatedPacket.integrity.confidence < 60;
@@ -447,7 +593,6 @@ export default function LiveRunHarness() {
       console.error('[LiveRunHarness] Run failed:', error);
       toast.error('Live run failed', { description: error instanceof Error ? error.message : 'Unknown error' });
       
-      // Mark all pending gates as failed
       gates.forEach(g => {
         if (g.status === 'pending') g.status = 'fail';
       });
@@ -480,7 +625,8 @@ export default function LiveRunHarness() {
             const html = buildExportHtml({ 
               title: config.artifact, 
               subtitle: data.companyBasics.companyName, 
-              body: content 
+              body: content,
+              provenance: report.provenance,
             });
             result.downloadFn = () => {
               downloadBlob(new Blob([html], { type: 'text/html' }), `${config.artifact.toLowerCase().replace(/\s+/g, '-')}.html`);
@@ -535,10 +681,20 @@ export default function LiveRunHarness() {
 
   const generateExportContent = (artifact: string, report: DiagnosticReport, data: WizardData): string => {
     const company = data.companyBasics.companyName || 'Target Company';
+    const prov = report.provenance;
+    const provenanceHeader = prov ? `PROVENANCE DISCLOSURE
+AI_STATUS: ${prov.ai_status}
+MODEL_USED: ${prov.model_used}
+RETRY_COUNT: ${prov.retry_count}
+FAIL_REASON: ${prov.fail_reason}
+TIMESTAMP: ${prov.timestamp}
+TIER: ${prov.tier}
+-------------------------------------
+` : '';
     
     switch (artifact) {
       case 'Prospect Snapshot':
-        return `PROSPECT SNAPSHOT — ${company}
+        return `${provenanceHeader}PROSPECT SNAPSHOT — ${company}
 =====================================
 Severity: ${data.situation?.urgency?.toUpperCase() || 'MEDIUM'}
 Confidence: ${report.integrity.confidence}%
@@ -549,13 +705,13 @@ ${report.sections.executiveBrief.split('\n').slice(0, 12).join('\n')}
 
 KEY METRICS
 -----------
-• Cash: ${data.runwayInputs.cashOnHand}
-• Monthly Burn: ${data.runwayInputs.monthlyBurn}
-• Debt: ${data.runwayInputs.hasDebt ? data.runwayInputs.debtAmount : 'None'}
+• Cash: $${data.runwayInputs.cashOnHand}M
+• Monthly Burn: $${data.runwayInputs.monthlyBurn}M
+• Debt: Computed from EV-Equity
 `;
 
       case 'Executive Snapshot':
-        return `EXECUTIVE SNAPSHOT — ${company}
+        return `${provenanceHeader}EXECUTIVE SNAPSHOT — ${company}
 ========================================
 ${report.sections.executiveBrief}
 
@@ -565,7 +721,7 @@ ${report.sections.options.split('\n').slice(0, 20).join('\n')}
 `;
 
       case 'Full Decision Packet':
-        return `FULL DECISION PACKET — ${company}
+        return `${provenanceHeader}FULL DECISION PACKET — ${company}
 ==========================================
 
 SITUATION ANALYSIS
@@ -597,14 +753,14 @@ ${report.sections.evidenceRegister}
         return `# BRIEFING DOCUMENT
 Company: ${company}
 Generated: ${new Date(report.generatedAt).toISOString()}
+${prov ? `AI_STATUS: ${prov.ai_status} | MODEL: ${prov.model_used} | TIER: ${prov.tier}` : ''}
 
 ## Summary
 ${report.sections.executiveBrief}
 
 ## Key Numbers
-- Cash: ${data.runwayInputs.cashOnHand}
-- Burn: ${data.runwayInputs.monthlyBurn}
-- Debt: ${data.runwayInputs.hasDebt ? data.runwayInputs.debtAmount : 'None'}
+- Cash: $${data.runwayInputs.cashOnHand}M
+- Burn: $${data.runwayInputs.monthlyBurn}M
 
 ## Signals
 ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
@@ -626,7 +782,7 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
 
   const allGatesPass = qaGates.length > 0 && qaGates.every(g => g.status === 'pass');
   const hasFailedGates = qaGates.some(g => g.status === 'fail');
-  const readyStatus = runComplete ? (allGatesPass ? 'READY' : 'NOT READY') : 'PENDING';
+  const readyStatus = runComplete ? (allGatesPass ? 'READY' : hasFailedGates ? 'NOT READY' : 'WARNINGS') : 'PENDING';
 
   // Build info
   const buildTimestamp = new Date().toISOString();
@@ -641,8 +797,8 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
     <EnterpriseLayout>
       <TransparencyBanner variant="reference" />
       <PageHeader 
-        title="Live Run Harness" 
-        subtitle="Internal verification and demo operator panel"
+        title="Live Run Harness v3.0" 
+        subtitle="End-to-end verification with failover, circuit breaker, and provenance disclosure"
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Live Run Harness' },
@@ -659,22 +815,28 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
               "p-4 rounded-lg border-2 flex items-center justify-between",
               !runComplete && "bg-muted/30 border-border",
               runComplete && allGatesPass && "bg-success/10 border-success",
-              runComplete && hasFailedGates && "bg-destructive/10 border-destructive"
+              runComplete && hasFailedGates && "bg-destructive/10 border-destructive",
+              runComplete && !allGatesPass && !hasFailedGates && "bg-warning/10 border-warning"
             )}
           >
             <div className="flex items-center gap-3">
               {!runComplete && <Activity className="w-5 h-5 text-muted-foreground" />}
               {runComplete && allGatesPass && <CheckCircle2 className="w-5 h-5 text-success" />}
               {runComplete && hasFailedGates && <XCircle className="w-5 h-5 text-destructive" />}
+              {runComplete && !allGatesPass && !hasFailedGates && <AlertTriangle className="w-5 h-5 text-warning" />}
               <div>
                 <span className="font-semibold text-lg">LIVE RUN STATUS: </span>
                 <Badge variant={
                   readyStatus === 'READY' ? 'default' : 
                   readyStatus === 'NOT READY' ? 'destructive' : 
-                  'secondary'
+                  readyStatus === 'WARNINGS' ? 'secondary' :
+                  'outline'
                 } className="text-sm">
                   {readyStatus}
                 </Badge>
+                {runMode === 'overload-sim' && (
+                  <Badge variant="outline" className="ml-2 text-xs">OVERLOAD SIM</Badge>
+                )}
               </div>
             </div>
             {runComplete && (
@@ -684,8 +846,26 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
             )}
           </motion.div>
 
-          {/* Claude Disclosure Banner */}
-          {runComplete && (
+          {/* Provenance Disclosure Banner */}
+          {runComplete && provenance && (
+            <Alert variant={provenance.ai_status === 'DETERMINISTIC_ONLY' ? 'destructive' : 'default'}>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Provenance Disclosure</AlertTitle>
+              <AlertDescription>
+                <div className="font-mono text-xs mt-1 grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1">
+                  <span>AI_STATUS: <strong>{provenance.ai_status}</strong></span>
+                  <span>MODEL_USED: <strong>{provenance.model_used}</strong></span>
+                  <span>RETRY_COUNT: <strong>{provenance.retry_count}</strong></span>
+                  <span>FAIL_REASON: <strong>{provenance.fail_reason}</strong></span>
+                  <span>TIMESTAMP: <strong>{provenance.timestamp}</strong></span>
+                  <span>TIER: <strong>{provenance.tier}</strong></span>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Claude Disclosure Banner (legacy compat) */}
+          {runComplete && !provenance && (
             <Alert variant={claudeStatus === 'failed' ? 'destructive' : 'default'}>
               <Info className="h-4 w-4" />
               <AlertTitle>
@@ -720,7 +900,7 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                 Test Pack Selection
               </CardTitle>
               <CardDescription>
-                Select a predefined test scenario or use custom inputs from the 6-step wizard.
+                Select a predefined test scenario. KnownGood/KnownBad packs verify gate logic; existing packs test full diagnostic.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -740,28 +920,14 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium text-foreground">{pack.name}</h4>
-                          {pack.id === 'liquidity-wall' && (
-                            <>
-                              <span className="px-1.5 py-0.5 bg-accent/10 text-accent text-xs font-semibold rounded uppercase tracking-wide">
-                                Reference Stress Test Case
-                              </span>
-                              <span className="px-1.5 py-0.5 bg-success/10 text-success text-xs font-semibold rounded">
-                                Governance Verified
-                              </span>
-                            </>
+                          {pack.expectGate1Fail && (
+                            <Badge variant="destructive" className="text-xs">EXPECT FAIL</Badge>
+                          )}
+                          {pack.id === 'known-good' && (
+                            <Badge className="text-xs bg-success/10 text-success border-success/30">EXPECT PASS</Badge>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">{pack.description}</p>
-                        {pack.id === 'liquidity-wall' && (
-                          <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono text-muted-foreground">
-                            <span>Cash: $3.2M</span>
-                            <span>Burn: $1.4M/mo</span>
-                            <span>Runway: 2.3 months</span>
-                            <span>Debt maturity: 60 days</span>
-                            <span>Severity: CRITICAL</span>
-                            <span>Confidence: 65%</span>
-                          </div>
-                        )}
                       </div>
                       {selectedPack === pack.id && (
                         <CheckCircle2 className="w-5 h-5 text-accent flex-shrink-0" />
@@ -800,23 +966,42 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
             </CardContent>
           </Card>
 
-          {/* Run Button */}
-          <div className="flex justify-center">
+          {/* Run Buttons */}
+          <div className="flex justify-center gap-3 flex-wrap">
             <Button 
               size="lg" 
-              onClick={runFullDiagnostic}
+              onClick={() => runFullDiagnostic(false)}
               disabled={isRunning}
-              className="gap-2 px-8"
+              className="gap-2 px-6"
             >
-              {isRunning ? (
+              {isRunning && runMode === 'normal' ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Running Diagnostic...
+                  Running...
                 </>
               ) : (
                 <>
                   <Play className="w-5 h-5" />
-                  Run Full Live Diagnostic (All Tiers + Exports)
+                  {activePack?.expectGate1Fail ? 'Run KnownBad' : activePack?.id === 'known-good' ? 'Run KnownGood' : 'Run Full Diagnostic'}
+                </>
+              )}
+            </Button>
+            <Button 
+              size="lg" 
+              variant="outline"
+              onClick={() => runFullDiagnostic(true)}
+              disabled={isRunning}
+              className="gap-2 px-6"
+            >
+              {isRunning && runMode === 'overload-sim' ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Simulating...
+                </>
+              ) : (
+                <>
+                  <FlaskConical className="w-5 h-5" />
+                  Run Overload Simulation
                 </>
               )}
             </Button>
@@ -831,7 +1016,7 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                   QA Gates — Readiness
                 </CardTitle>
                 <CardDescription>
-                  All gates must pass for READY status.
+                  All gates must pass for READY status. KnownBad packs expect Gate 1 failure.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -886,7 +1071,7 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
                   Export Matrix
                 </CardTitle>
                 <CardDescription>
-                  All tier artifacts with format availability.
+                  All tier artifacts with format availability. Exports include provenance disclosure header.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1021,7 +1206,7 @@ ${data.signalChecklist.signals.map(s => `- ${s}`).join('\n')}
               </div>
               <div className="flex items-center gap-1">
                 <Zap className="w-3 h-3" />
-                <span>DiagnosticOS Live Run Harness v2.0 — Full Model Verification</span>
+                <span>DiagnosticOS Live Run Harness v3.0 — Failover + Circuit Breaker + Provenance</span>
               </div>
             </div>
           </div>
